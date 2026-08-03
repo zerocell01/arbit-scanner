@@ -1,0 +1,47 @@
+name: Scan for arbitrage gaps
+
+on:
+  schedule:
+    # tiap 15 menit - GitHub Actions cron gak dijamin presisi di menit
+    # yang sama, tapi cukup buat gap yang bertahan menit-jaman.
+    - cron: '*/15 * * * *'
+  workflow_dispatch: {} # biar bisa dipicu manual dari tab Actions
+
+permissions:
+  contents: write # perlu buat commit balik state.json
+
+concurrency:
+  group: arbit-scanner-run
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run scanner
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GAINER_LOSER_THRESHOLD: ${{ vars.GAINER_LOSER_THRESHOLD || '15' }}
+          MIN_GAP_PERCENT: ${{ vars.MIN_GAP_PERCENT || '3' }}
+          COINGECKO_PAGES: ${{ vars.COINGECKO_PAGES || '1' }}
+          ALERT_COOLDOWN_HOURS: ${{ vars.ALERT_COOLDOWN_HOURS || '6' }}
+        run: node src/index.js
+
+      - name: Persist state.json
+        run: |
+          git config user.name "arbit-scanner-bot"
+          git config user.email "actions@users.noreply.github.com"
+          if ! git diff --quiet -- state.json; then
+            git add state.json
+            git commit -m "chore: update alert state [skip ci]"
+            git push
+          else
+            echo "state.json unchanged, skip commit"
+          fi
