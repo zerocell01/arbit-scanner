@@ -73,14 +73,13 @@ async function scanOnce(state) {
     if (gapPercent < config.minGapPercent) continue
 
     const key = `${candidate.id}:${cheapest.platform}:${priciest.platform}`
-    if (isOnCooldown(state, key)) {
-      console.log(`[stage4] ${candidate.symbol} gap ada tapi masih cooldown, skip`)
-      continue
-    }
+    const onCooldown = isOnCooldown(state, key)
 
     // Stage 5: simulasi bridge beneran - dapetin jalur (bridge/tool) dan
     // profit bersih setelah fee, sekaligus cek liquiditas real (bukan cuma
-    // selisih harga di atas kertas).
+    // selisih harga di atas kertas). Dijalanin WALAU lagi cooldown, biar
+    // tombol "Jalur Terakhir" di Telegram tetap ke-update sama data
+    // terbaru (cuma alert-nya doang yang di-skip pas cooldown).
     let arb
     try {
       arb = await estimateArbitrage(cheapest, priciest)
@@ -89,24 +88,30 @@ async function scanOnce(state) {
       continue
     }
 
+    // Dicatet buat tombol "Jalur Terakhir" - selalu diisi tiap ada kandidat
+    // yang lolos gap filter, MASUK kasus rute gak ketemu (routeFound:false),
+    // biar user tetep bisa liat kenapa suatu token gak jadi alert.
+    state.lastRoute = {
+      symbol: candidate.symbol.toUpperCase(),
+      fromPlatform: cheapest.platform,
+      toPlatform: priciest.platform,
+      gapPercent,
+      routeFound: arb.routeFound,
+      bridgeName: arb.routeFound ? arb.bridgeName : null,
+      netProfitUsd: arb.routeFound ? arb.netProfitUsd : null,
+      netProfitPercent: arb.routeFound ? arb.netProfitPercent : null,
+      time: Date.now(),
+      alerted: false,
+    }
+
     if (!arb.routeFound) {
       console.log(`[stage5] ${candidate.symbol} gap ${gapPercent.toFixed(2)}% tapi gak ada rute bridge yang lolos (liquiditas tipis), skip alert`)
       continue
     }
 
-    // Dicatet buat tombol "Jalur Terakhir" di Telegram - tetap disimpen
-    // walau di bawah profit ntar di-skip alert-nya, biar user tetep bisa
-    // liat rute apa yang kedetect terakhir kali.
-    state.lastRoute = {
-      symbol: candidate.symbol.toUpperCase(),
-      fromPlatform: cheapest.platform,
-      toPlatform: priciest.platform,
-      bridgeName: arb.bridgeName,
-      gapPercent,
-      netProfitUsd: arb.netProfitUsd,
-      netProfitPercent: arb.netProfitPercent,
-      time: Date.now(),
-      alerted: false,
+    if (onCooldown) {
+      console.log(`[stage4] ${candidate.symbol} rute ketemu (${arb.bridgeName}) tapi masih cooldown, skip alert`)
+      continue
     }
 
     if (arb.netProfitPercent < config.minNetProfitPercent) {

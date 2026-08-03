@@ -99,11 +99,27 @@ jadi gak butuh `answerCallbackQuery` sama sekali. `handleText()` di
 `wakeEmitter` di `src/wake.js` - `EventEmitter` yang di-share ke
 `index.js` buat interupsi `waitForNextCycle()`; scan tetep jalan sekali
 walau status lagi stopped, pakai flag `forceNext` di loop `main()`),
-**🔀 Jalur Terakhir** (baca `state.lastRoute`, diisi tiap Stage 5 nemu
-rute - ADA atau GAK ADA alert yang jadi dikirim, jadi user tetep bisa
-liat rute yang kedeteksi walau di bawah threshold profit), **⏸/▶️
-Stop/Start**, **📊 Status**. Command `/menu` tetep ada buat manggil ulang
-keyboard-nya kalau user pernah nge-remove secara manual dari app-nya.
+**🔀 Jalur Terakhir** (baca `state.lastRoute`), **⏸/▶️ Stop/Start**,
+**📊 Status**. Command `/menu` tetep ada buat manggil ulang keyboard-nya
+kalau user pernah nge-remove secara manual dari app-nya.
+
+**`state.lastRoute` - kapan diisi (revisi 2026-08-04, awalnya salah):**
+awalnya cuma diisi kalau Stage 5 NEMU rute bridge (`routeFound: true`).
+User komplain "ub dan btw kok gk muncul" di Jalur Terakhir - padahal
+dua-duanya rutin lolos gap filter (kelihatan di log). Penyebabnya:
+UB/BTW SELALU `routeFound: false` (liquiditas cross-chain-nya tipis di
+LI.FI, gap-nya emang gak beneran bisa dieksekusi - ini konfirmasi lagi
+temuan Stage 5 sebelumnya, BUKAN bug), jadi gak pernah ke-record sama
+sekali. Fix: `state.lastRoute` sekarang diisi begitu kandidat lolos gap
+filter (`gapPercent >= config.minGapPercent`), APAPUN hasil Stage 5-nya
+- field `routeFound` (boolean) nentuin `commands.js: formatLastRoute()`
+nampilin jalur+profit (kalau true) atau pesan "gak ada rute, liquiditas
+tipis" (kalau false). Konsekuensi: Stage 5 (`estimateArbitrage`, 1 call
+LI.FI `/quote`) sekarang jalan WALAU kandidatnya lagi cooldown - order
+di `scanOnce()` diubah jadi: gap filter -> Stage 5 -> record lastRoute
+-> (baru) cooldown/profit-threshold check buat mutusin kirim alert atau
+kagak. Trade-off ini sengaja diambil biar tombol selalu ke-update, bukan
+oversight.
 
 **Bug yang udah pernah kefix, jangan diulang:** `sendTelegramAlert()`
 harus return boolean sukses/gagal, dan `index.js` cuma boleh
@@ -129,6 +145,21 @@ eksponensial (`"2.789e+21"`), yang ditolak LI.FI (400 Bad Request,
 bukan 404 "no route"). Fix: `toSmallestUnitString()` di
 `src/profit.js` - manipulasi string desimal + `BigInt`, JANGAN balik
 ke perkalian float lurus buat ngitung raw token amount.
+
+**Bug lain yang udah kefix (2026-08-04, abis `COINGECKO_PAGES` dinaikin
+ke 4):** `fetchVolatileCandidates()` (Stage 1, `src/coingecko.js`) gak
+punya retry-on-429 - beda sama `fetchPlatforms()` (Stage 2) yang emang
+udah ada dari awal. Pas `COINGECKO_PAGES` masih 1 gak kerasa masalahnya
+(cuma 1 call), tapi begitu naik ke 4 (call beruntun ke `/coins/markets`),
+429 dari CoinGecko bikin `fetchVolatileCandidates` throw dan
+NGEGAGALIN SATU SIKLUS SCAN PENUH (ke-catch di `main()` sebagai
+`[scan] error`, skip ke siklus berikutnya - bukan crash proses). Fix:
+`fetchMarketsPage()` sekarang retry-on-429 sama persis kayak
+`fetchPlatforms`, plus jeda 1 detik antar-halaman. Pelajaran: kalau nambah
+lagi pemanggilan API beruntun ke endpoint yang sama (naikin
+`COINGECKO_PAGES` lebih lanjut, atau nambah paginasi di tempat lain),
+CEK DULU ada retry logic-nya - jangan asumsi default fetch tanpa retry
+itu aman di free tier.
 
 ## Status deploy
 

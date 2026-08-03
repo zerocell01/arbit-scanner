@@ -72,10 +72,14 @@ di-summon ulang tiap kali):
   jadwal `SCAN_INTERVAL_MINUTES`. Tetep jalan walau bot lagi status
   "stopped" (override sekali doang, status balik ke stopped lagi
   setelahnya kalau emang lagi di-stop).
-- **🔀 Jalur Terakhir** - nunjukin rute arbitrase (token, chain
-  beli/jual, jalur bridge, gap%, profit bersih) yang terakhir kali
-  ketemu di Stage 5 - termasuk yang gak jadi dikirim sebagai alert
-  karena profit-nya di bawah `MIN_NET_PROFIT_PERCENT`.
+- **🔀 Jalur Terakhir** - nunjukin kandidat terakhir yang lolos filter
+  gap harga (token, chain beli/jual, gap%), APAPUN hasil Stage 5-nya:
+  kalau rute bridge ketemu, ikut nampilin jalur bridge & profit bersih
+  (termasuk yang gak jadi dikirim sebagai alert karena profitnya di
+  bawah `MIN_NET_PROFIT_PERCENT` atau lagi cooldown); kalau rute GAK
+  ketemu (liquiditas tipis), tetep ditampilin sebagai info - biar user
+  ngerti kenapa suatu gap gak jadi alert, bukan diem aja kayak gak ada
+  apa-apa kejadian.
 - **⏸ Stop / ▶️ Start** - set flag `enabled` (disimpen ke `state.json`).
   Stop = siklus scan berikutnya di-skip total (hemat kuota API).
 - **📊 Status** - balas status sekarang (jalan / berhenti).

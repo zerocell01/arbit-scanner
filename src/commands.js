@@ -34,20 +34,30 @@ function menuKeyboard(state) {
 
 function formatLastRoute(state) {
   const r = state.lastRoute
-  if (!r) return 'Belum ada rute arbitrase yang ketemu sejak bot ini jalan.'
+  if (!r) return 'Belum ada token yang lolos filter gap harga sejak bot ini jalan.'
 
   const agoMin = Math.round((Date.now() - r.time) / 60000)
-  return [
-    `*Jalur arbitrase terakhir* (${agoMin} menit lalu)`,
+  const lines = [
+    `*Kandidat arbitrase terakhir* (${agoMin} menit lalu)`,
     `Token: *${r.symbol}*`,
     `Beli di *${r.fromPlatform}* → Jual di *${r.toPlatform}*`,
-    `Jalur bridge: *${r.bridgeName}*`,
     `Gap harga: ${r.gapPercent.toFixed(2)}%`,
+  ]
+
+  if (!r.routeFound) {
+    lines.push('', '_Gak ada rute bridge yang lolos di LI.FI (liquiditas kemungkinan tipis) - gap ini kemungkinan gak beneran bisa dieksekusi._')
+    return lines.join('\n')
+  }
+
+  lines.push(
+    `Jalur bridge: *${r.bridgeName}*`,
     `Estimasi profit bersih: $${r.netProfitUsd.toFixed(2)} (${r.netProfitPercent.toFixed(2)}%)`,
+    '',
     r.alerted
       ? '_(sempat dikirim sebagai alert)_'
       : '_(di bawah threshold profit, gak dikirim sebagai alert)_',
-  ].join('\n')
+  )
+  return lines.join('\n')
 }
 
 // Semua aksi teks (command "/x" MAUPUN tap tombol reply-keyboard, dua-duanya
