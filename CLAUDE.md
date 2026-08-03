@@ -35,7 +35,7 @@ BUKAN eksekusi otomatis.
   dipakai sekali ke tugas yang diminta, tapi selalu saranin user buat
   regenerate/revoke kalau mereka khawatir soal itu - jangan diem aja.
 
-## Arsitektur (funnel 4 tahap)
+## Arsitektur (funnel 5 tahap)
 
 1. **Stage 1** (`src/coingecko.js: fetchVolatileCandidates`) - 1-2 call
    ke CoinGecko `/coins/markets`, nyaring token yang lagi volatile
@@ -44,12 +44,28 @@ BUKAN eksekusi otomatis.
    kandidat, cek token itu ada di berapa chain. Auto-retry pakai
    backoff kalau kena 429 (free tier CoinGecko gampang limit kalau
    IP-nya shared - ini pernah kejadian di test run pertama).
-3. **Stage 3** (`src/lifi.js: fetchChainPriceUsd`) - harga per-chain
-   dari LI.FI `/v1/token` (gratis, no key), bukan cuma harga agregat
-   CoinGecko. Chain yang gak dikenal LI.FI (`CHAIN_MAP` di
-   `src/config.js`) otomatis di-skip, gak dianggap error.
-4. **Stage 4** (`src/telegram.js`) - kirim alert ke Telegram kalau gap
-   di atas threshold DAN belum kena cooldown (`src/state.js`).
+3. **Stage 3** (`src/lifi.js: fetchTokenInfo`) - harga + decimals
+   per-chain dari LI.FI `/v1/token` (gratis, no key), bukan cuma harga
+   agregat CoinGecko. Chain yang gak dikenal LI.FI (`CHAIN_MAP` di
+   `src/config.js`) otomatis di-skip, gak dianggap error. `decimals`
+   dari response ini dipakai lagi di Stage 5 (gak perlu fetch ulang).
+4. **Stage 4** - cooldown check (`src/state.js`), skip kalau pair ini
+   udah pernah kealert dalam `ALERT_COOLDOWN_HOURS` terakhir.
+5. **Stage 5** (`src/profit.js: estimateArbitrage`, ditambah
+   2026-08-03) - quote bridge SUNGGUHAN lewat LI.FI `/v1/quote` (bukan
+   `/v1/token` lagi) buat modal `TRADE_SIZE_USD` (default $500), dari
+   chain termurah ke chain termahal. Ini ngasih dua hal: (a) nama
+   bridge/tool yang dipakai (`toolDetails.name`) buat ditampilin
+   sebagai "jalur arbit", dan (b) profit bersih setelah
+   `feeCosts`+`gasCosts` (`netProfitUsd`/`netProfitPercent`). Kalau LI.FI
+   404 (gak ada rute yang lolos price-impact/liquidity threshold-nya),
+   `routeFound: false` - alert DI-SKIP TOTAL, bukan dikirim dengan
+   warning. Ini penting: waktu deploy pertama, token UB (gap 3.66%
+   secara harga) ternyata gak punya rute bridge yang lolos sama sekali
+   (price impact 24%+, liquiditas kepompong) - berarti alert versi lama
+   (sebelum Stage 5 ada) itu **false positive**. Kalau `netProfitPercent`
+   di bawah `MIN_NET_PROFIT_PERCENT` (default 0%), alert juga di-skip -
+   fee bridge kadang makan abis gap-nya buat token yang chain-nya jauh.
 
 **Kontrol on/off** (`src/commands.js`, ditambah 2026-08-03, diubah ke
 long-polling di hari yang sama): `index.js` sekarang proses long-running
@@ -80,6 +96,15 @@ diconfig"). Fix: pakai flag native Node 24 `--env-file=.env` di
 `node src/index.js` polos lagi, harus
 `node --env-file=.env src/index.js`.
 
+**Bug lain yang udah kefix (2026-08-03, pas nambah Stage 5):**
+`fromAmount` buat LI.FI `/v1/quote` awalnya dihitung
+`Math.floor((usd / price) * 10 ** decimals)` - buat token 18-decimal,
+hasilnya gampang lewat `1e21` dan `String()`-nya jadi notasi
+eksponensial (`"2.789e+21"`), yang ditolak LI.FI (400 Bad Request,
+bukan 404 "no route"). Fix: `toSmallestUnitString()` di
+`src/profit.js` - manipulasi string desimal + `BigInt`, JANGAN balik
+ke perkalian float lurus buat ngitung raw token amount.
+
 ## Status deploy
 
 - [x] Kode & funnel logic - selesai, udah dites (mock test lokal +
@@ -92,8 +117,13 @@ diconfig"). Fix: pakai flag native Node 24 `--env-file=.env` di
       arbit-scanner --interpreter node --node-args="--env-file=.env"`,
       `pm2 save` + `pm2 startup` udah dijalanin biar auto-start pas
       reboot). Bukan cron lagi - lihat "Kenapa dibangun begini" di atas.
-- [ ] Threshold (`GAINER_LOSER_THRESHOLD`, `MIN_GAP_PERCENT`, dst)
-      masih default - user belum request perubahan spesifik.
+- [x] **Stage 5 (jalur bridge + profit bersih) ditambah 2026-08-03**,
+      dites live pakai pasangan liquid (WETH eth<->arb, route ketemu,
+      profit dihitung benar) dan pasangan thin-liquidity (UB eth<->bsc,
+      `routeFound:false` sesuai ekspektasi).
+- [ ] Threshold (`GAINER_LOSER_THRESHOLD`, `MIN_GAP_PERCENT`,
+      `TRADE_SIZE_USD`, `MIN_NET_PROFIT_PERCENT`, dst) masih default -
+      user belum request perubahan spesifik.
 
 ## Batasan yang perlu diinget
 

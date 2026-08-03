@@ -6,6 +6,10 @@ export const config = {
   coingeckoPages: Number(process.env.COINGECKO_PAGES ?? 1),
   alertCooldownHours: Number(process.env.ALERT_COOLDOWN_HOURS ?? 6),
   scanIntervalMinutes: Number(process.env.SCAN_INTERVAL_MINUTES ?? 15),
+  // Stage 5: modal notional (USD) buat simulasi bridge & hitung profit bersih
+  tradeSizeUsd: Number(process.env.TRADE_SIZE_USD ?? 500),
+  // skip alert kalau profit bersih (setelah fee+gas bridge) di bawah ini
+  minNetProfitPercent: Number(process.env.MIN_NET_PROFIT_PERCENT ?? 0),
 }
 
 // Mapping CoinGecko "platform" id -> LI.FI chain key.

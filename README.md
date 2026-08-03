@@ -7,7 +7,7 @@ harga secara periodik tiap beberapa menit - bukan cron terpisah, bukan
 streaming realtime (gap harga biasanya bertahan menit-jaman, bukan
 milidetik, jadi polling cukup).
 
-## Cara kerja (funnel 4 tahap)
+## Cara kerja (funnel 5 tahap)
 
 1. **Stage 1 - Screening murah:** 1 call ke CoinGecko `/coins/markets`
    buat nyaring token yang lagi volatile (naik/turun di atas threshold).
@@ -17,16 +17,22 @@ milidetik, jadi polling cukup).
 3. **Stage 3 - Konfirmasi gap:** ambil harga per-chain dari LI.FI
    (`/v1/token`) - lebih akurat dari harga agregat CoinGecko karena
    sumbernya DEX langsung. Chain yang gak dikenal LI.FI otomatis di-skip.
-4. **Stage 4 - Alert:** kalau gap di atas threshold dan belum kena
-   cooldown, kirim ke Telegram.
+4. **Stage 4 - Cooldown check:** kalau pair ini udah pernah di-alert dalam
+   `ALERT_COOLDOWN_HOURS` terakhir, skip - anti-spam.
+5. **Stage 5 - Jalur bridge & profit riil:** simulasi bridge beneran lewat
+   LI.FI `/v1/quote` buat modal sebesar `TRADE_SIZE_USD` - dapetin nama
+   bridge/rute yang dipakai dan profit bersih setelah fee+gas. Ini
+   sekaligus jadi **cek liquiditas nyata**: kalau gak ada rute yang lolos
+   (price impact kegedean), alert di-skip - gap-nya kemungkinan gak
+   beneran bisa dieksekusi walau angkanya keliatan besar di Stage 1-3.
 
 Paralel sama loop scan di atas, ada listener terpisah yang terus-terusan
 dengerin command Telegram baru (`/start`, `/stop`, `/status`) - lihat
 bagian "Kontrol via Telegram" di bawah.
 
-Cuma Stage 1 yang nyentuh SEMUA token (dan itu 1-2 call doang). Stage 2-3
-cuma jalan ke kandidat yang udah kefilter, jadi kuota API tetap kecil
-walau scan-nya "auto" ke semua token trending.
+Cuma Stage 1 yang nyentuh SEMUA token (dan itu 1-2 call doang). Stage 2-5
+cuma jalan ke kandidat yang udah kefilter makin ketat tiap tahap, jadi
+kuota API tetap kecil walau scan-nya "auto" ke semua token trending.
 
 ## Setup
 
@@ -115,12 +121,20 @@ pm2 restart arbit-scanner
 
 ## Catatan
 
-- Threshold default (`GAINER_LOSER_THRESHOLD=15`, `MIN_GAP_PERCENT=3`)
-  ada di `.env.example` - sesuaikan sendiri.
+- Threshold default (`GAINER_LOSER_THRESHOLD=15`, `MIN_GAP_PERCENT=3`,
+  `MIN_NET_PROFIT_PERCENT=0`) ada di `.env.example` - sesuaikan sendiri.
+- `TRADE_SIZE_USD` (default 500) itu modal notional yang disimulasiin di
+  Stage 5 buat ngitung profit bersih - bukan modal beneran, cuma dasar
+  hitungan. Fee bridge persentasenya biasanya turun buat modal lebih
+  besar, jadi profit % di alert bisa beda kalau modal kamu beneran beda
+  jauh dari angka ini.
 - Chain yang didukung ada di `CHAIN_MAP` (`src/config.js`) - baru
   nge-cover chain mainstream yang dikenal LI.FI. Chain baru banget
   (Plasma, Hemi, dll) bakal ke-skip otomatis di Stage 3.
-- Ini alat **screening**, bukan eksekusi otomatis - tetap wajib cek
-  manual likuiditas, jalur bridge, dan risiko protokol (DVN/Attestation/
-  Governor, dst - lihat catatan Arbitrage From Zero di Ananta Notes)
-  sebelum eksekusi beneran.
+- Profit di Stage 5 itu simulasi rute bridge doang (LI.FI `/quote`
+  buat token yang sama di dua chain) - **belum termasuk slippage beli
+  di DEX chain asal / jual di DEX chain tujuan**, yang sering ada rute
+  swap-nya sendiri di luar bridge. Ini alat **screening**, bukan
+  eksekusi otomatis - tetap wajib cek manual likuiditas, jalur bridge,
+  dan risiko protokol (DVN/Attestation/Governor, dst - lihat catatan
+  Arbitrage From Zero di Ananta Notes) sebelum eksekusi beneran.

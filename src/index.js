@@ -1,6 +1,7 @@
 import { config, CHAIN_MAP } from './config.js'
 import { fetchVolatileCandidates, fetchPlatforms } from './coingecko.js'
-import { fetchChainPriceUsd } from './lifi.js'
+import { fetchTokenInfo } from './lifi.js'
+import { estimateArbitrage } from './profit.js'
 import { sendTelegramAlert } from './telegram.js'
 import { loadState, saveState, isOnCooldown, markAlerted } from './state.js'
 import { startCommandListener, isEnabled } from './commands.js'
@@ -35,9 +36,10 @@ async function scanOnce(state) {
     const prices = []
     for (const [platform, address] of supportedChains) {
       await sleep(300)
+      const chainKey = CHAIN_MAP[platform]
       try {
-        const price = await fetchChainPriceUsd(CHAIN_MAP[platform], address)
-        if (price) prices.push({ platform, address, price })
+        const info = await fetchTokenInfo(chainKey, address)
+        if (info) prices.push({ platform, chainKey, address, price: info.price, decimals: info.decimals })
       } catch (err) {
         console.warn(`[stage3] skip ${candidate.symbol}/${platform}: ${err.message}`)
       }
@@ -58,17 +60,45 @@ async function scanOnce(state) {
       continue
     }
 
+    // Stage 5: simulasi bridge beneran - dapetin jalur (bridge/tool) dan
+    // profit bersih setelah fee, sekaligus cek liquiditas real (bukan cuma
+    // selisih harga di atas kertas).
+    let arb
+    try {
+      arb = await estimateArbitrage(cheapest, priciest)
+    } catch (err) {
+      console.warn(`[stage5] skip ${candidate.symbol}: ${err.message}`)
+      continue
+    }
+
+    if (!arb.routeFound) {
+      console.log(`[stage5] ${candidate.symbol} gap ${gapPercent.toFixed(2)}% tapi gak ada rute bridge yang lolos (liquiditas tipis), skip alert`)
+      continue
+    }
+
+    if (arb.netProfitPercent < config.minNetProfitPercent) {
+      console.log(
+        `[stage5] ${candidate.symbol} rute ketemu (${arb.bridgeName}) tapi profit bersih cuma ${arb.netProfitPercent.toFixed(2)}% (fee+gas ~$${arb.totalFeeUsd.toFixed(2)}), skip alert`,
+      )
+      continue
+    }
+
     const text = [
       `*Gap harga: ${candidate.symbol.toUpperCase()}*`,
       `24h change: ${candidate.change24h.toFixed(1)}%`,
       `Beli di *${cheapest.platform}*: $${cheapest.price.toPrecision(6)}`,
       `Jual di *${priciest.platform}*: $${priciest.price.toPrecision(6)}`,
-      `Gap: *${gapPercent.toFixed(2)}%*`,
+      `Gap harga: *${gapPercent.toFixed(2)}%*`,
+      '',
+      `Jalur bridge: *${arb.bridgeName}*`,
+      `Modal simulasi: $${config.tradeSizeUsd}`,
+      `Estimasi profit bersih: *$${arb.netProfitUsd.toFixed(2)} (${arb.netProfitPercent.toFixed(2)}%)*`,
+      `Total fee+gas bridge: ~$${arb.totalFeeUsd.toFixed(2)}`,
       '',
       `CA (${cheapest.platform}): \`${cheapest.address}\``,
       `CA (${priciest.platform}): \`${priciest.address}\``,
       '',
-      '_Cek ulang likuiditas & jalur bridge manual sebelum eksekusi._',
+      '_Profit di atas simulasi rute bridge doang - belum termasuk slippage beli/jual di DEX. Cek ulang manual sebelum eksekusi._',
     ].join('\n')
 
     const sent = await sendTelegramAlert(text)
