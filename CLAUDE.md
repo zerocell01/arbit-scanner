@@ -146,9 +146,22 @@ ke perkalian float lurus buat ngitung raw token amount.
       dites live pakai pasangan liquid (WETH eth<->arb, route ketemu,
       profit dihitung benar) dan pasangan thin-liquidity (UB eth<->bsc,
       `routeFound:false` sesuai ekspektasi).
-- [ ] Threshold (`GAINER_LOSER_THRESHOLD`, `MIN_GAP_PERCENT`,
+- [x] **`COINGECKO_PAGES` dinaikin 1 -> 4 di `.env` VPS (2026-08-04)**,
+      threshold lain (`GAINER_LOSER_THRESHOLD=15`, `MIN_GAP_PERCENT=3`,
+      dst) TETAP default - user eksplisit minta cuma perlebar jangkauan,
+      bukan turunin threshold. Ini fix buat masalah nyata: 26 siklus
+      pertama pasca-deploy CUMA PERNAH nemu 2 token (UB, BTW) berulang -
+      karena `COINGECKO_PAGES=1` cuma nyisir top-250 market-cap CoinGecko,
+      dan token segede itu biasanya udah "diarbitrase" bot lain sampai
+      gap-nya nyaris nutup sendiri (BTW misalnya gap-nya cuma ~0.96%, di
+      bawah `MIN_GAP_PERCENT`). Abis dinaikin ke 4 (scan top-1000), siklus
+      berikutnya langsung nemu 26 kandidat (naik dari 6) - lihat log pm2
+      buat konfirmasi tren lanjutannya. **Perubahan ini cuma di `.env`
+      VPS, BUKAN di `.env.example`/git** - kalau ada yang clone ulang
+      repo ini, defaultnya balik ke `COINGECKO_PAGES=1`.
+- [ ] Threshold lain (`GAINER_LOSER_THRESHOLD`, `MIN_GAP_PERCENT`,
       `TRADE_SIZE_USD`, `MIN_NET_PROFIT_PERCENT`, dst) masih default -
-      user belum request perubahan spesifik.
+      user belum request perubahan spesifik buat ini.
 
 ## Batasan yang perlu diinget
 
