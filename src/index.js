@@ -16,7 +16,8 @@ async function main() {
 
   for (const candidate of candidates) {
     // jaga-jaga biar gak nabrak rate limit free tier CoinGecko
-    await sleep(1500)
+    // (runner GitHub Actions sering share IP, jadi delay-nya dilebihin)
+    await sleep(4000)
 
     let platforms
     try {
@@ -71,9 +72,13 @@ async function main() {
       '_Cek ulang likuiditas & jalur bridge manual sebelum eksekusi._',
     ].join('\n')
 
-    await sendTelegramAlert(text)
-    markAlerted(state, key)
-    alertsSent += 1
+    const sent = await sendTelegramAlert(text)
+    if (sent) {
+      // cooldown cuma di-set kalau beneran kekirim, biar yang gagal
+      // (mis. token salah) tetap dicoba ulang di run berikutnya
+      markAlerted(state, key)
+      alertsSent += 1
+    }
   }
 
   await saveState(state)

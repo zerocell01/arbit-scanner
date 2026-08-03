@@ -30,15 +30,27 @@ export async function fetchVolatileCandidates() {
   return candidates
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
 // Stage 2: 1 call per kandidat yang lolos Stage 1 - cek token itu ada di
 // berapa chain (platform). Cuma yang muncul di 2+ chain yang lanjut.
-export async function fetchPlatforms(coinId) {
+// Retry otomatis kalau kena 429, biar gak asal skip kandidat gara-gara
+// numpuk request ke free tier.
+export async function fetchPlatforms(coinId, attempt = 1) {
   const url = `${BASE}/coins/${coinId}?localization=false&tickers=false&market_data=false&community_data=false&developer_data=false`
   const res = await fetch(url)
+
+  if (res.status === 429) {
+    if (attempt >= 3) throw new Error('RATE_LIMITED')
+    const retryAfter = Number(res.headers.get('retry-after')) || attempt * 15
+    console.warn(`[stage2] rate limited, nunggu ${retryAfter}s (percobaan ${attempt})`)
+    await sleep(retryAfter * 1000)
+    return fetchPlatforms(coinId, attempt + 1)
+  }
   if (!res.ok) {
-    if (res.status === 429) throw new Error('RATE_LIMITED')
     throw new Error(`CoinGecko coin ${coinId} ${res.status}`)
   }
+
   const data = await res.json()
   const platforms = data.platforms ?? {}
 
