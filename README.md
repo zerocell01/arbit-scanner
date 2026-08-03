@@ -45,32 +45,33 @@ Tanpa `.env` diisi, bot tetap jalan tapi alert cuma di-log ke console
 - **State lokal (`state.json`)** buat dedup alert - gak butuh database
   eksternal.
 
-## Deploy gratis via GitHub Actions
+## Deploy di VPS sendiri (cron + .env lokal)
 
-Workflow-nya udah ada di `.github/workflows/scan.yml` - jalan tiap ~15
-menit pakai `schedule` cron, gratis dalam limit menit bulanan GitHub
-Actions (2.000 menit/bulan buat repo private, tiap run cuma butuh
-beberapa detik). `state.json` di-commit balik ke repo tiap run biar
-dedup alert-nya persisten antar-run.
+Repo ini gak nyimpen kredensial apa pun - `.env` dan `state.json`
+sama-sama di-gitignore, jadi murni tinggal di server kamu, gak pernah
+nyentuh GitHub sama sekali.
 
-**Setup sekali:**
+**Setup sekali di server:**
 
-1. Buka **Settings > Secrets and variables > Actions** di repo ini.
-2. Tambahin 2 *secret*: `TELEGRAM_BOT_TOKEN` dan `TELEGRAM_CHAT_ID`.
-3. (Opsional) Tambahin *variable* buat override threshold default:
-   `GAINER_LOSER_THRESHOLD`, `MIN_GAP_PERCENT`, `COINGECKO_PAGES`,
-   `ALERT_COOLDOWN_HOURS`.
-4. Workflow-nya otomatis aktif begitu ke-push. Bisa juga dipicu manual
-   dari tab **Actions > Scan for arbitrage gaps > Run workflow**.
+```bash
+git clone https://github.com/zerocell01/arbit-scanner
+cd arbit-scanner
+cp .env.example .env
+nano .env   # isi TELEGRAM_BOT_TOKEN & TELEGRAM_CHAT_ID
+node src/index.js   # tes jalan manual dulu
+```
 
-**Catatan soal GitHub Actions scheduled workflow:**
+**Jadwalin pakai cron** (`crontab -e`), misal tiap 15 menit:
 
-- Jadwal cron GitHub Actions itu *best-effort* - kadang meleset
-  beberapa menit pas server-nya lagi sibuk. Gak masalah buat bot ini
-  karena gap-nya bertahan lama.
-- Kalau repo gak ada aktivitas (commit) selama 60 hari, GitHub otomatis
-  **nonaktifin** scheduled workflow. Tinggal aktifin lagi manual dari
-  tab Actions kalau itu terjadi.
+```cron
+*/15 * * * * cd /path/ke/arbit-scanner && /usr/bin/node src/index.js >> scanner.log 2>&1
+```
+
+`state.json` bakal otomatis dibikin/di-update di folder itu tiap run -
+gak perlu setup database atau commit apa pun balik ke git.
+
+**Update kode nanti:** tinggal `git pull` di server - `.env` dan
+`state.json` gak kesentuh karena udah di-gitignore.
 
 ## Catatan
 
