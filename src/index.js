@@ -9,6 +9,11 @@ import { wakeEmitter } from './wake.js'
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+// Berapa kandidat terakhir yang disimpen buat tombol "Jalur Terakhir" -
+// bukan cuma 1, biar gak ke-overwrite abis tiap ada kandidat baru lolos
+// gap filter (makin gampang kejadian sejak pool-nya diperlebar).
+const MAX_ROUTE_HISTORY = 5
+
 // Kayak sleep(), tapi bisa diinterupsi lebih awal lewat wakeEmitter (dipicu
 // tombol "Scan Sekarang" di Telegram). Resolve dengan payload event-nya
 // (mis. `{ forced: true }`), atau `undefined` kalau abis karena timeout biasa.
@@ -90,8 +95,10 @@ async function scanOnce(state) {
 
     // Dicatet buat tombol "Jalur Terakhir" - selalu diisi tiap ada kandidat
     // yang lolos gap filter, MASUK kasus rute gak ketemu (routeFound:false),
-    // biar user tetep bisa liat kenapa suatu token gak jadi alert.
-    state.lastRoute = {
+    // biar user tetep bisa liat kenapa suatu token gak jadi alert. Simpen
+    // beberapa terakhir (bukan cuma 1), biar kandidat yang ke-overwrite gara
+    // gara pool makin luas (COINGECKO_PAGES) gak ilang semua.
+    const routeEntry = {
       symbol: candidate.symbol.toUpperCase(),
       fromPlatform: cheapest.platform,
       toPlatform: priciest.platform,
@@ -103,6 +110,7 @@ async function scanOnce(state) {
       time: Date.now(),
       alerted: false,
     }
+    state.lastRoutes = [routeEntry, ...(state.lastRoutes ?? [])].slice(0, MAX_ROUTE_HISTORY)
 
     if (!arb.routeFound) {
       console.log(`[stage5] ${candidate.symbol} gap ${gapPercent.toFixed(2)}% tapi gak ada rute bridge yang lolos (liquiditas tipis), skip alert`)
@@ -144,7 +152,7 @@ async function scanOnce(state) {
       // cooldown cuma di-set kalau beneran kekirim, biar yang gagal
       // (mis. token salah) tetap dicoba ulang di run berikutnya
       markAlerted(state, key)
-      state.lastRoute.alerted = true
+      routeEntry.alerted = true
       alertsSent += 1
     }
   }

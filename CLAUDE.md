@@ -99,27 +99,37 @@ jadi gak butuh `answerCallbackQuery` sama sekali. `handleText()` di
 `wakeEmitter` di `src/wake.js` - `EventEmitter` yang di-share ke
 `index.js` buat interupsi `waitForNextCycle()`; scan tetep jalan sekali
 walau status lagi stopped, pakai flag `forceNext` di loop `main()`),
-**🔀 Jalur Terakhir** (baca `state.lastRoute`), **⏸/▶️ Stop/Start**,
-**📊 Status**. Command `/menu` tetep ada buat manggil ulang keyboard-nya
-kalau user pernah nge-remove secara manual dari app-nya.
+**🔀 Jalur Terakhir** (baca `state.lastRoutes`, array), **⏸/▶️
+Stop/Start**, **📊 Status**. Command `/menu` tetep ada buat manggil ulang
+keyboard-nya kalau user pernah nge-remove secara manual dari app-nya.
 
-**`state.lastRoute` - kapan diisi (revisi 2026-08-04, awalnya salah):**
-awalnya cuma diisi kalau Stage 5 NEMU rute bridge (`routeFound: true`).
-User komplain "ub dan btw kok gk muncul" di Jalur Terakhir - padahal
-dua-duanya rutin lolos gap filter (kelihatan di log). Penyebabnya:
-UB/BTW SELALU `routeFound: false` (liquiditas cross-chain-nya tipis di
-LI.FI, gap-nya emang gak beneran bisa dieksekusi - ini konfirmasi lagi
-temuan Stage 5 sebelumnya, BUKAN bug), jadi gak pernah ke-record sama
-sekali. Fix: `state.lastRoute` sekarang diisi begitu kandidat lolos gap
-filter (`gapPercent >= config.minGapPercent`), APAPUN hasil Stage 5-nya
-- field `routeFound` (boolean) nentuin `commands.js: formatLastRoute()`
-nampilin jalur+profit (kalau true) atau pesan "gak ada rute, liquiditas
-tipis" (kalau false). Konsekuensi: Stage 5 (`estimateArbitrage`, 1 call
-LI.FI `/quote`) sekarang jalan WALAU kandidatnya lagi cooldown - order
-di `scanOnce()` diubah jadi: gap filter -> Stage 5 -> record lastRoute
--> (baru) cooldown/profit-threshold check buat mutusin kirim alert atau
-kagak. Trade-off ini sengaja diambil biar tombol selalu ke-update, bukan
-oversight.
+**`state.lastRoutes` - kapan & gimana diisi (revisi 2x di 2026-08-04):**
+
+1. Awalnya cuma diisi kalau Stage 5 NEMU rute bridge (`routeFound:
+   true`). User komplain "ub dan btw kok gk muncul" di Jalur Terakhir -
+   padahal dua-duanya rutin lolos gap filter (kelihatan di log).
+   Penyebabnya: UB/BTW SELALU `routeFound: false` (liquiditas
+   cross-chain-nya tipis di LI.FI, gap-nya emang gak beneran bisa
+   dieksekusi - konfirmasi lagi temuan Stage 5 sebelumnya, BUKAN bug),
+   jadi gak pernah ke-record sama sekali. Fix: diisi begitu kandidat
+   lolos gap filter (`gapPercent >= config.minGapPercent`), APAPUN hasil
+   Stage 5-nya - field `routeFound` (boolean) nentuin `commands.js:
+   formatRouteEntry()` nampilin jalur+profit (kalau true) atau pesan
+   "gak ada rute, liquiditas tipis" (kalau false). Konsekuensi: Stage 5
+   (`estimateArbitrage`, 1 call LI.FI `/quote`) sekarang jalan WALAU
+   kandidatnya lagi cooldown - order di `scanOnce()`: gap filter ->
+   Stage 5 -> record ke `lastRoutes` -> (baru) cooldown/profit-threshold
+   check buat mutusin kirim alert atau kagak. Trade-off sengaja diambil
+   biar tombol selalu ke-update, bukan oversight.
+2. Field sempet singular (`state.lastRoute`, 1 objek doang, ke-overwrite
+   abis tiap siklus). User tanya lagi "yg ub gimana" pas ternyata
+   ke-overwrite sama token laen (BICO) - wajar karena `COINGECKO_PAGES`
+   udah dinaikin jadi lebih banyak kandidat lolos gap filter per siklus.
+   Fix: diganti jadi `state.lastRoutes` (array, `unshift` + `slice(0,
+   MAX_ROUTE_HISTORY)` di `index.js`, `MAX_ROUTE_HISTORY = 5`). Kalau
+   nemu state.json lama yang masih punya key `lastRoute` (singular),
+   itu peninggalan format lama - gak dipakai lagi, aman diabaikan/dihapus
+   manual, gak ada migrasi otomatis.
 
 **Bug yang udah pernah kefix, jangan diulang:** `sendTelegramAlert()`
 harus return boolean sukses/gagal, dan `index.js` cuma boleh

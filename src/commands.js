@@ -32,32 +32,23 @@ function menuKeyboard(state) {
   }
 }
 
-function formatLastRoute(state) {
-  const r = state.lastRoute
-  if (!r) return 'Belum ada token yang lolos filter gap harga sejak bot ini jalan.'
-
+function formatRouteEntry(r) {
   const agoMin = Math.round((Date.now() - r.time) / 60000)
-  const lines = [
-    `*Kandidat arbitrase terakhir* (${agoMin} menit lalu)`,
-    `Token: *${r.symbol}*`,
-    `Beli di *${r.fromPlatform}* → Jual di *${r.toPlatform}*`,
-    `Gap harga: ${r.gapPercent.toFixed(2)}%`,
-  ]
+  const header = `*${r.symbol}* (${agoMin}m lalu) - ${r.fromPlatform} → ${r.toPlatform}, gap ${r.gapPercent.toFixed(2)}%`
 
   if (!r.routeFound) {
-    lines.push('', '_Gak ada rute bridge yang lolos di LI.FI (liquiditas kemungkinan tipis) - gap ini kemungkinan gak beneran bisa dieksekusi._')
-    return lines.join('\n')
+    return `${header}\n  _rute bridge gak ketemu di LI.FI (liquiditas tipis)_`
   }
 
-  lines.push(
-    `Jalur bridge: *${r.bridgeName}*`,
-    `Estimasi profit bersih: $${r.netProfitUsd.toFixed(2)} (${r.netProfitPercent.toFixed(2)}%)`,
-    '',
-    r.alerted
-      ? '_(sempat dikirim sebagai alert)_'
-      : '_(di bawah threshold profit, gak dikirim sebagai alert)_',
-  )
-  return lines.join('\n')
+  const status = r.alerted ? 'alert terkirim' : 'di bawah threshold profit'
+  return `${header}\n  Jalur: *${r.bridgeName}* - profit $${r.netProfitUsd.toFixed(2)} (${r.netProfitPercent.toFixed(2)}%) - _${status}_`
+}
+
+function formatLastRoute(state) {
+  const routes = state.lastRoutes ?? []
+  if (routes.length === 0) return 'Belum ada token yang lolos filter gap harga sejak bot ini jalan.'
+
+  return [`*${routes.length} kandidat arbitrase terakhir:*`, '', ...routes.map(formatRouteEntry)].join('\n\n')
 }
 
 // Semua aksi teks (command "/x" MAUPUN tap tombol reply-keyboard, dua-duanya
