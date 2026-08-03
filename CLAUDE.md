@@ -48,15 +48,24 @@ harus return boolean sukses/gagal, dan `index.js` cuma boleh
 ini salah - alert yang gagal kirim (mis. token salah) tetap kena
 cooldown, jadi gak pernah nyoba lagi.
 
+**Bug lain yang udah kefix (2026-08-03, deploy pertama di VPS):**
+`config.js` baca `process.env` langsung tapi gak ada apa pun yang
+nge-load file `.env` ke situ (gak ada `dotenv`, gak ada flag). Efeknya
+token/chat ID di `.env` diisi tapi tetap dianggap kosong ("belum
+diconfig"). Fix: pakai flag native Node 24 `--env-file=.env` di
+`package.json` (`npm start`) DAN di command cron - jangan jalanin
+`node src/index.js` polos lagi, harus
+`node --env-file=.env src/index.js`.
+
 ## Status deploy
 
 - [x] Kode & funnel logic - selesai, udah dites (mock test lokal +
       live run sukses di GitHub Actions sebelum dipindah ke VPS).
 - [x] Bot Telegram connected - chat ID user udah dikonfirmasi jalan.
-- [ ] **Belum di-deploy ke VPS user.** Instruksi lengkap ada di
-      README.md bagian "Deploy di VPS sendiri". Kalau session baru ini
-      lagi jalan DI VPS user, lanjutin dari situ: clone repo, isi
-      `.env`, tes `node src/index.js` manual, baru pasang cron.
+- [x] **Deploy ke VPS (79.143.181.30) selesai 2026-08-03.** Repo di
+      `/root/arbit-scanner`, `.env` udah keisi, test run manual sukses
+      (nemu gap 3.66% token UB, alert kekirim ke Telegram). Cron
+      `*/15 menit` udah dipasang (lihat crontab -l).
 - [ ] Threshold (`GAINER_LOSER_THRESHOLD`, `MIN_GAP_PERCENT`, dst)
       masih default - user belum request perubahan spesifik.
 

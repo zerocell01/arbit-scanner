@@ -58,13 +58,13 @@ git clone https://github.com/zerocell01/arbit-scanner
 cd arbit-scanner
 cp .env.example .env
 nano .env   # isi TELEGRAM_BOT_TOKEN & TELEGRAM_CHAT_ID
-node src/index.js   # tes jalan manual dulu
+node --env-file=.env src/index.js   # tes jalan manual dulu
 ```
 
 **Jadwalin pakai cron** (`crontab -e`), misal tiap 15 menit:
 
 ```cron
-*/15 * * * * cd /path/ke/arbit-scanner && /usr/bin/node src/index.js >> scanner.log 2>&1
+*/15 * * * * cd /path/ke/arbit-scanner && /usr/bin/node --env-file=.env src/index.js >> scanner.log 2>&1
 ```
 
 `state.json` bakal otomatis dibikin/di-update di folder itu tiap run -
