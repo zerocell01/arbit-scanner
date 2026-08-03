@@ -73,15 +73,15 @@ di-summon ulang tiap kali):
   "stopped" (override sekali doang, status balik ke stopped lagi
   setelahnya kalau emang lagi di-stop).
 - **🔀 Jalur Terakhir** - nunjukin **5 kandidat terakhir** yang lolos
-  filter gap harga (token, chain beli/jual, gap%), APAPUN hasil Stage
-  5-nya: kalau rute bridge ketemu, ikut nampilin jalur bridge & profit
-  bersih (termasuk yang gak jadi dikirim sebagai alert karena profitnya
-  di bawah `MIN_NET_PROFIT_PERCENT` atau lagi cooldown); kalau rute GAK
-  ketemu (liquiditas tipis), tetep ditampilin sebagai info - biar user
-  ngerti kenapa suatu gap gak jadi alert, bukan diem aja kayak gak ada
-  apa-apa kejadian. Disimpen sebagai daftar (bukan cuma 1 data) biar
-  kandidat yang lebih lawas gak langsung ilang begitu ada kandidat baru
-  lolos gap filter.
+  filter gap harga (token, chain beli/jual, gap%, contract address di
+  kedua chain), APAPUN hasil Stage 5-nya: kalau rute bridge ketemu, ikut
+  nampilin jalur bridge & profit bersih (termasuk yang gak jadi dikirim
+  sebagai alert karena profitnya di bawah `MIN_NET_PROFIT_PERCENT` atau
+  lagi cooldown); kalau rute GAK ketemu (liquiditas tipis), tetep
+  ditampilin sebagai info - biar user ngerti kenapa suatu gap gak jadi
+  alert, bukan diem aja kayak gak ada apa-apa kejadian. Disimpen sebagai
+  daftar (bukan cuma 1 data) biar kandidat yang lebih lawas gak langsung
+  ilang begitu ada kandidat baru lolos gap filter.
 - **⏸ Stop / ▶️ Start** - set flag `enabled` (disimpen ke `state.json`).
   Stop = siklus scan berikutnya di-skip total (hemat kuota API).
 - **📊 Status** - balas status sekarang (jalan / berhenti).

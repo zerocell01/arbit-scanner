@@ -102,6 +102,8 @@ async function scanOnce(state) {
       symbol: candidate.symbol.toUpperCase(),
       fromPlatform: cheapest.platform,
       toPlatform: priciest.platform,
+      fromAddress: cheapest.address,
+      toAddress: priciest.address,
       gapPercent,
       routeFound: arb.routeFound,
       bridgeName: arb.routeFound ? arb.bridgeName : null,
