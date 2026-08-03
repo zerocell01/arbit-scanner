@@ -3,20 +3,11 @@ import { fetchVolatileCandidates, fetchPlatforms } from './coingecko.js'
 import { fetchChainPriceUsd } from './lifi.js'
 import { sendTelegramAlert } from './telegram.js'
 import { loadState, saveState, isOnCooldown, markAlerted } from './state.js'
-import { pollCommands, isEnabled } from './commands.js'
+import { startCommandListener, isEnabled } from './commands.js'
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-async function main() {
-  const state = await loadState()
-  await pollCommands(state)
-
-  if (!isEnabled(state)) {
-    console.log('[bot] status: stopped (kirim /start di Telegram buat lanjutin scan)')
-    await saveState(state)
-    return
-  }
-
+async function scanOnce(state) {
   console.log('[stage1] scanning gainers/losers...')
   const candidates = await fetchVolatileCandidates()
   console.log(`[stage1] ${candidates.length} kandidat volatile ditemukan`)
@@ -25,7 +16,6 @@ async function main() {
 
   for (const candidate of candidates) {
     // jaga-jaga biar gak nabrak rate limit free tier CoinGecko
-    // (runner GitHub Actions sering share IP, jadi delay-nya dilebihin)
     await sleep(4000)
 
     let platforms
@@ -92,6 +82,32 @@ async function main() {
 
   await saveState(state)
   console.log(`[done] ${alertsSent} alert terkirim`)
+}
+
+// Proses long-running (bukan sekali-jalan-lalu-exit) - dipasang di pm2,
+// bukan cron. Command listener (`/start` `/stop` `/status`) jalan paralel
+// terus-terusan lewat long-polling, jadi kerasa instan. Loop scan di bawah
+// jalan tiap `SCAN_INTERVAL_MINUTES` (default 15 menit), berbagi objek
+// `state` yang sama dengan listener-nya.
+async function main() {
+  const state = await loadState()
+
+  startCommandListener(state).catch((err) => {
+    console.error('[fatal] command listener berhenti:', err)
+  })
+
+  while (true) {
+    if (isEnabled(state)) {
+      try {
+        await scanOnce(state)
+      } catch (err) {
+        console.error('[scan] error:', err)
+      }
+    } else {
+      console.log('[bot] status: stopped, skip scan')
+    }
+    await sleep(config.scanIntervalMinutes * 60 * 1000)
+  }
 }
 
 main().catch((err) => {

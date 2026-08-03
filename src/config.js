@@ -5,6 +5,7 @@ export const config = {
   minGapPercent: Number(process.env.MIN_GAP_PERCENT ?? 3),
   coingeckoPages: Number(process.env.COINGECKO_PAGES ?? 1),
   alertCooldownHours: Number(process.env.ALERT_COOLDOWN_HOURS ?? 6),
+  scanIntervalMinutes: Number(process.env.SCAN_INTERVAL_MINUTES ?? 15),
 }
 
 // Mapping CoinGecko "platform" id -> LI.FI chain key.

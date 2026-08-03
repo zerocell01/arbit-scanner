@@ -1,0 +1,7 @@
+[stage1] scanning gainers/losers...
+[stage1] 6 kandidat volatile ditemukan
+[stage2] ub ada di 2 chain yang dikenal
+[stage4] ub gap ada tapi masih cooldown, skip
+[stage2] btw ada di 2 chain yang dikenal
+[stage2] rate limited, nunggu 60s (percobaan 1)
+[done] 0 alert terkirim

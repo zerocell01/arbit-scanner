@@ -34,11 +34,11 @@ export async function sendTelegramMessage(text) {
   return true
 }
 
-// short poll (timeout 0) - bot ini gak listener terus-nyala, jadi cukup cek
-// pesan baru sekali tiap kali cron jalan, gak perlu long-polling.
-export async function getTelegramUpdates(offset) {
+// timeout dalam detik - dipakai buat Telegram long-polling (server nahan
+// koneksi sampai ada pesan baru atau timeout abis), bukan cuma cek sekilas.
+export async function getTelegramUpdates(offset, timeout = 0) {
   if (!config.telegramBotToken) return []
-  const res = await callTelegramApi('getUpdates', { offset, timeout: 0 })
+  const res = await callTelegramApi('getUpdates', { offset, timeout })
   if (!res.ok) {
     console.error('[telegram] gagal getUpdates:', res.status, await res.text())
     return []

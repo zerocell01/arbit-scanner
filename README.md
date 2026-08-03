@@ -1,9 +1,11 @@
 # Arbit Scanner
 
 Bot pemantau gap harga cross-chain, dibangun buat jalan **100% di free tier**
-(gak butuh RPC/websocket sendiri). Dijalankan periodik (cron), bukan
-streaming - karena gap harga biasanya bertahan menit-jaman, bukan
-milidetik.
+(gak butuh RPC/websocket sendiri, gak butuh hosting berbayar). Proses jalan
+terus di background (pm2, restart otomatis kalau crash/reboot) dan scan
+harga secara periodik tiap beberapa menit - bukan cron terpisah, bukan
+streaming realtime (gap harga biasanya bertahan menit-jaman, bukan
+milidetik, jadi polling cukup).
 
 ## Cara kerja (funnel 4 tahap)
 
@@ -18,9 +20,9 @@ milidetik.
 4. **Stage 4 - Alert:** kalau gap di atas threshold dan belum kena
    cooldown, kirim ke Telegram.
 
-Sebelum Stage 1, bot cek dulu ada command Telegram baru (`/start`,
-`/stop`, `/status`) yang masuk - lihat bagian "Kontrol via Telegram"
-di bawah.
+Paralel sama loop scan di atas, ada listener terpisah yang terus-terusan
+dengerin command Telegram baru (`/start`, `/stop`, `/status`) - lihat
+bagian "Kontrol via Telegram" di bawah.
 
 Cuma Stage 1 yang nyentuh SEMUA token (dan itu 1-2 call doang). Stage 2-3
 cuma jalan ke kandidat yang udah kefilter, jadi kuota API tetap kecil
@@ -52,23 +54,26 @@ Tanpa `.env` diisi, bot tetap jalan tapi alert cuma di-log ke console
 ## Kontrol via Telegram
 
 Bot punya command `/start`, `/stop`, `/status` (muncul di menu "/" app
-Telegram). Karena bot ini jalan per-cron (bukan listener terus-nyala),
-command baru cuma dicek di AWAL tiap run - jadi efeknya paling lambat
-kebaca di run cron berikutnya (~15 menit default), bukan instan.
+Telegram). Listener-nya pakai Telegram **long-polling** (nahan koneksi
+sampai 30 detik nunggu pesan baru) dan jalan terus selama proses hidup -
+jadi efeknya kerasa hampir instan, gak nunggu jadwal scan berikutnya.
 
-- `/stop` - set flag `enabled: false` di `state.json`, run berikutnya
-  skip Stage 1-4 semua (gak ada API call sama sekali, hemat kuota).
-- `/start` - balikin flag ke `enabled: true`, scan jalan normal lagi.
+- `/stop` - set flag `enabled: false` (disimpen ke `state.json`), siklus
+  scan berikutnya di-skip total (gak ada API call sama sekali, hemat kuota).
+- `/start` - balikin flag ke `enabled: true`, scan jalan normal lagi mulai
+  siklus berikutnya.
 - `/status` - balas status sekarang (jalan / berhenti), gak ngubah apa-apa.
 
 Command dari chat ID selain yang di `.env` (`TELEGRAM_CHAT_ID`) diabaikan
 - biar orang lain yang nemu bot ini gak bisa stop/start punya kamu.
 
-## Deploy di VPS sendiri (cron + .env lokal)
+## Deploy di VPS sendiri (pm2 + .env lokal, tetap free)
 
 Repo ini gak nyimpen kredensial apa pun - `.env` dan `state.json`
 sama-sama di-gitignore, jadi murni tinggal di server kamu, gak pernah
-nyentuh GitHub sama sekali.
+nyentuh GitHub sama sekali. Gak butuh cron - proses jalan terus sendiri
+lewat [pm2](https://pm2.keymetrics.io/) (process manager gratis, sering
+dipakai buat bot Node.js di VPS sendiri).
 
 **Setup sekali di server:**
 
@@ -77,20 +82,36 @@ git clone https://github.com/zerocell01/arbit-scanner
 cd arbit-scanner
 cp .env.example .env
 nano .env   # isi TELEGRAM_BOT_TOKEN & TELEGRAM_CHAT_ID
-node --env-file=.env src/index.js   # tes jalan manual dulu
+node --env-file=.env src/index.js   # tes jalan manual dulu, Ctrl+C buat stop
 ```
 
-**Jadwalin pakai cron** (`crontab -e`), misal tiap 15 menit:
+**Jalankan permanen pakai pm2:**
 
-```cron
-*/15 * * * * cd /path/ke/arbit-scanner && /usr/bin/node --env-file=.env src/index.js >> scanner.log 2>&1
+```bash
+npm install -g pm2   # sekali aja kalau belum ada
+pm2 start src/index.js --name arbit-scanner --interpreter node --node-args="--env-file=.env"
+pm2 save              # biar tetep jalan otomatis kalau VPS reboot
+pm2 startup           # sekali aja - generate & jalanin perintah systemd yang ditampilin
 ```
 
-`state.json` bakal otomatis dibikin/di-update di folder itu tiap run -
-gak perlu setup database atau commit apa pun balik ke git.
+Cek status/log kapan aja:
 
-**Update kode nanti:** tinggal `git pull` di server - `.env` dan
-`state.json` gak kesentuh karena udah di-gitignore.
+```bash
+pm2 status arbit-scanner
+pm2 logs arbit-scanner
+```
+
+`state.json` bakal otomatis dibikin/di-update di folder itu selama proses
+jalan - gak perlu setup database atau commit apa pun balik ke git.
+
+**Update kode nanti:**
+
+```bash
+git pull
+pm2 restart arbit-scanner
+```
+
+`.env` dan `state.json` gak kesentuh karena udah di-gitignore.
 
 ## Catatan
 
