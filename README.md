@@ -18,6 +18,10 @@ milidetik.
 4. **Stage 4 - Alert:** kalau gap di atas threshold dan belum kena
    cooldown, kirim ke Telegram.
 
+Sebelum Stage 1, bot cek dulu ada command Telegram baru (`/start`,
+`/stop`, `/status`) yang masuk - lihat bagian "Kontrol via Telegram"
+di bawah.
+
 Cuma Stage 1 yang nyentuh SEMUA token (dan itu 1-2 call doang). Stage 2-3
 cuma jalan ke kandidat yang udah kefilter, jadi kuota API tetap kecil
 walau scan-nya "auto" ke semua token trending.
@@ -44,6 +48,21 @@ Tanpa `.env` diisi, bot tetap jalan tapi alert cuma di-log ke console
   filter awal, bukan semua token.
 - **State lokal (`state.json`)** buat dedup alert - gak butuh database
   eksternal.
+
+## Kontrol via Telegram
+
+Bot punya command `/start`, `/stop`, `/status` (muncul di menu "/" app
+Telegram). Karena bot ini jalan per-cron (bukan listener terus-nyala),
+command baru cuma dicek di AWAL tiap run - jadi efeknya paling lambat
+kebaca di run cron berikutnya (~15 menit default), bukan instan.
+
+- `/stop` - set flag `enabled: false` di `state.json`, run berikutnya
+  skip Stage 1-4 semua (gak ada API call sama sekali, hemat kuota).
+- `/start` - balikin flag ke `enabled: true`, scan jalan normal lagi.
+- `/status` - balas status sekarang (jalan / berhenti), gak ngubah apa-apa.
+
+Command dari chat ID selain yang di `.env` (`TELEGRAM_CHAT_ID`) diabaikan
+- biar orang lain yang nemu bot ini gak bisa stop/start punya kamu.
 
 ## Deploy di VPS sendiri (cron + .env lokal)
 

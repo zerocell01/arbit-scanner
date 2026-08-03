@@ -3,15 +3,24 @@ import { fetchVolatileCandidates, fetchPlatforms } from './coingecko.js'
 import { fetchChainPriceUsd } from './lifi.js'
 import { sendTelegramAlert } from './telegram.js'
 import { loadState, saveState, isOnCooldown, markAlerted } from './state.js'
+import { pollCommands, isEnabled } from './commands.js'
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 async function main() {
+  const state = await loadState()
+  await pollCommands(state)
+
+  if (!isEnabled(state)) {
+    console.log('[bot] status: stopped (kirim /start di Telegram buat lanjutin scan)')
+    await saveState(state)
+    return
+  }
+
   console.log('[stage1] scanning gainers/losers...')
   const candidates = await fetchVolatileCandidates()
   console.log(`[stage1] ${candidates.length} kandidat volatile ditemukan`)
 
-  const state = await loadState()
   let alertsSent = 0
 
   for (const candidate of candidates) {

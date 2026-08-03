@@ -42,6 +42,20 @@ BUKAN eksekusi otomatis.
 4. **Stage 4** (`src/telegram.js`) - kirim alert ke Telegram kalau gap
    di atas threshold DAN belum kena cooldown (`src/state.js`).
 
+**Kontrol on/off** (`src/commands.js`, ditambah 2026-08-03): tiap run,
+SEBELUM Stage 1, `pollCommands()` short-poll `getUpdates` Telegram buat
+cek command `/start` `/stop` `/status` yang masuk sejak run terakhir
+(offset disimpen di `state.telegramUpdateOffset`). `/stop` set
+`state.enabled = false` - run berikutnya skip semua stage (gak ada API
+call CoinGecko/LI.FI sama sekali). Command dari chat ID selain
+`TELEGRAM_CHAT_ID` di `.env` diabaikan. Ini BUKAN listener realtime -
+karena bot jalan per-cron, command baru efeknya baru kebaca di run
+cron berikutnya (default 15 menit), bukan instan. Kalau user minta
+respons instan ke /stop, itu butuh ubah arsitektur ke long-polling
+proses yang jalan terus (pm2), bukan cron - jangan diam-diam diubah,
+tanya dulu karena itu keluar dari prinsip "cron, bukan streaming"
+di atas.
+
 **Bug yang udah pernah kefix, jangan diulang:** `sendTelegramAlert()`
 harus return boolean sukses/gagal, dan `index.js` cuma boleh
 `markAlerted()` (set cooldown) kalau kirimnya BENERAN sukses. Awalnya
