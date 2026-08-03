@@ -40,8 +40,12 @@ function formatRouteEntry(r) {
     `  CA (${r.toPlatform}): \`${r.toAddress}\``,
   ].join('\n')
 
+  if (r.securityFlag) {
+    return `${header}\n${ca}\n  🚨 _JANGAN DIEKSEKUSI - kedeteksi ${r.securityFlag} (cek keamanan GoPlus), rute+profit-nya lolos di atas kertas tapi kemungkinan gak beneran bisa dijual._`
+  }
+
   if (!r.routeFound) {
-    return `${header}\n${ca}\n  _rute bridge gak ketemu di LI.FI (liquiditas tipis)_`
+    return `${header}\n${ca}\n  ⚠️ _rute bridge gak ketemu di LI.FI - bisa jadi liquiditas tipis, TAPI SERING JUGA honeypot/tax jual ekstrim (token gak bisa dijual sama sekali). Cek dulu di GoPlus/honeypot checker sebelum dianggap peluang._`
   }
 
   const status = r.alerted ? 'alert terkirim' : 'di bawah threshold profit'

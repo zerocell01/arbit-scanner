@@ -10,6 +10,9 @@ export const config = {
   tradeSizeUsd: Number(process.env.TRADE_SIZE_USD ?? 500),
   // skip alert kalau profit bersih (setelah fee+gas bridge) di bawah ini
   minNetProfitPercent: Number(process.env.MIN_NET_PROFIT_PERCENT ?? 0),
+  // Stage keamanan: sell tax di atas ini (dari GoPlus) dianggap gak wajar
+  // buat token normal - kemungkinan honeypot/scam, skip alert
+  maxSellTaxPercent: Number(process.env.MAX_SELL_TAX_PERCENT ?? 15),
 }
 
 // Mapping CoinGecko "platform" id -> LI.FI chain key.

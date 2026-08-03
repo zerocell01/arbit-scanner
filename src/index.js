@@ -2,6 +2,7 @@ import { config, CHAIN_MAP } from './config.js'
 import { fetchVolatileCandidates, fetchPlatforms } from './coingecko.js'
 import { fetchTokenInfo } from './lifi.js'
 import { estimateArbitrage } from './profit.js'
+import { checkArbitrageSafety } from './security.js'
 import { sendTelegramAlert } from './telegram.js'
 import { loadState, saveState, isOnCooldown, markAlerted } from './state.js'
 import { startCommandListener, isEnabled } from './commands.js'
@@ -115,7 +116,7 @@ async function scanOnce(state) {
     state.lastRoutes = [routeEntry, ...(state.lastRoutes ?? [])].slice(0, MAX_ROUTE_HISTORY)
 
     if (!arb.routeFound) {
-      console.log(`[stage5] ${candidate.symbol} gap ${gapPercent.toFixed(2)}% tapi gak ada rute bridge yang lolos (liquiditas tipis), skip alert`)
+      console.log(`[stage5] ${candidate.symbol} gap ${gapPercent.toFixed(2)}% tapi gak ada rute bridge yang lolos (liquiditas tipis ATAU honeypot/tax jual ekstrim), skip alert`)
       continue
     }
 
@@ -128,6 +129,24 @@ async function scanOnce(state) {
       console.log(
         `[stage5] ${candidate.symbol} rute ketemu (${arb.bridgeName}) tapi profit bersih cuma ${arb.netProfitPercent.toFixed(2)}% (fee+gas ~$${arb.totalFeeUsd.toFixed(2)}), skip alert`,
       )
+      continue
+    }
+
+    // Cek honeypot/tax jual ekstrim (GoPlus) SEBELUM alert beneran dikirim -
+    // lapisan tambahan di luar Stage 5, buat nangkep token yang LOLOS quote
+    // LI.FI tapi ternyata gak bisa dijual di dunia nyata (LI.FI gak selalu
+    // simulasi logic tax/blacklist kontrak yang aneh-aneh).
+    let safety
+    try {
+      safety = await checkArbitrageSafety(cheapest, priciest)
+    } catch (err) {
+      console.warn(`[security] skip cek ${candidate.symbol}: ${err.message}`)
+      safety = { safe: true, reason: null } // fail-open - API down jangan sampai matiin fungsi alert
+    }
+
+    if (!safety.safe) {
+      console.log(`[security] ${candidate.symbol} rute+profit lolos tapi kedeteksi ${safety.reason} - skip alert`)
+      routeEntry.securityFlag = safety.reason
       continue
     }
 
@@ -146,7 +165,7 @@ async function scanOnce(state) {
       `CA (${cheapest.platform}): \`${cheapest.address}\``,
       `CA (${priciest.platform}): \`${priciest.address}\``,
       '',
-      '_Profit di atas simulasi rute bridge doang - belum termasuk slippage beli/jual di DEX. Cek ulang manual sebelum eksekusi._',
+      '_Profit di atas simulasi rute bridge doang - belum termasuk slippage beli/jual di DEX. Udah lolos cek honeypot GoPlus, TAPI itu bukan jaminan mutlak (GoPlus gak selalu lengkap datanya) - cek ulang manual sebelum eksekusi._',
     ].join('\n')
 
     const sent = await sendTelegramAlert(text)

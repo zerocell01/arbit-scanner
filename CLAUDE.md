@@ -35,7 +35,7 @@ BUKAN eksekusi otomatis.
   dipakai sekali ke tugas yang diminta, tapi selalu saranin user buat
   regenerate/revoke kalau mereka khawatir soal itu - jangan diem aja.
 
-## Arsitektur (funnel 5 tahap)
+## Arsitektur (funnel 6 tahap)
 
 1. **Stage 1** (`src/coingecko.js: fetchVolatileCandidates`) - 1-2 call
    ke CoinGecko `/coins/markets`, nyaring token yang lagi volatile
@@ -66,6 +66,32 @@ BUKAN eksekusi otomatis.
    (sebelum Stage 5 ada) itu **false positive**. Kalau `netProfitPercent`
    di bawah `MIN_NET_PROFIT_PERCENT` (default 0%), alert juga di-skip -
    fee bridge kadang makan abis gap-nya buat token yang chain-nya jauh.
+6. **Stage 6** (`src/security.js: checkArbitrageSafety`, ditambah
+   2026-08-04) - cek honeypot/tax jual ekstrim via GoPlus Security API
+   (gratis, no key) di KEDUA chain (beli & jual), CUMA buat kandidat yang
+   udah lolos Stage 5 (rute+profit oke di atas kertas) - taruh di sini,
+   bukan lebih awal, biar hemat API call (jarang ada kandidat yang sampe
+   sejauh ini). Alasan kenapa perlu, terpisah dari Stage 5: LI.FI ngecek
+   KELAYAKAN RUTE (price impact, liquidity), bukan simulasi logic
+   tax/blacklist kontrak - token honeypot kadang tetep dapet quote valid
+   dari LI.FI. Trigger: user share screenshot token UB (yang emang selalu
+   `routeFound:false` di Stage 5) yang ditandai "Unsafe" honeypot 99.55%
+   tax sama scanner lain. **PENTING - null dari GoPlus itu inconclusive,
+   BUKAN aman**: pas dicoba manual buat UB, GoPlus (`is_in_dex:'0'`) dan
+   honeypot.is (404 "pair not found") SAMA-SAMA gak punya data DEX buat
+   token itu di Ethereum - kontradiksi sama screenshot user (kemungkinan
+   screenshot itu baca pool yang lebih baru/kecil yang belum keindeks).
+   `checkTokenSecurity()` di `src/security.js` sengaja return `null`
+   (bukan `{unsafe:false}`) kalau `is_in_dex==='0'` - JANGAN diubah jadi
+   default aman, itu bakal kasih false sense of security. Threshold sell
+   tax (`config.maxSellTaxPercent`, default 15%) - di atas ini dianggap
+   gak wajar buat token normal (token legit kadang emang ada tax kecil
+   buat burn/reflection, jangan set ke 0%). User juga tanya soal nambah
+   aggregator kedua (Rango/Socket) buat cross-check LI.FI "no route" -
+   DITOLAK, karena LI.FI kebukti (liat `filteredOut` reasons di respons
+   quote-nya) udah nyoba banyak bridge underlying sekaligus (stargateV2,
+   across, cbridge, mayan, glacis, relaydepository) - "no route" dari
+   LI.FI udah representasi luas, bukan cuma satu jalur.
 
 **Kontrol on/off** (`src/commands.js`, ditambah 2026-08-03, diubah ke
 long-polling di hari yang sama): `index.js` sekarang proses long-running
