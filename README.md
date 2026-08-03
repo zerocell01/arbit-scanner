@@ -59,19 +59,36 @@ Tanpa `.env` diisi, bot tetap jalan tapi alert cuma di-log ke console
 
 ## Kontrol via Telegram
 
-Bot punya command `/start`, `/stop`, `/status` (muncul di menu "/" app
-Telegram). Listener-nya pakai Telegram **long-polling** (nahan koneksi
-sampai 30 detik nunggu pesan baru) dan jalan terus selama proses hidup -
-jadi efeknya kerasa hampir instan, gak nunggu jadwal scan berikutnya.
+Bot ngirim **menu tombol permanen** yang nempel di bawah kotak chat
+Telegram (sekali dikirim pas bot start, tetep keliatan terus - gak perlu
+di-summon ulang tiap kali):
 
-- `/stop` - set flag `enabled: false` (disimpen ke `state.json`), siklus
-  scan berikutnya di-skip total (gak ada API call sama sekali, hemat kuota).
-- `/start` - balikin flag ke `enabled: true`, scan jalan normal lagi mulai
-  siklus berikutnya.
-- `/status` - balas status sekarang (jalan / berhenti), gak ngubah apa-apa.
+|                        |                          |
+|------------------------|--------------------------|
+| 📡 **Scan Sekarang**   | 🔀 **Jalur Terakhir**    |
+| ⏸/▶️ **Stop / Start**  | 📊 **Status**            |
 
-Command dari chat ID selain yang di `.env` (`TELEGRAM_CHAT_ID`) diabaikan
-- biar orang lain yang nemu bot ini gak bisa stop/start punya kamu.
+- **📡 Scan Sekarang** - trigger satu siklus scan langsung, gak nunggu
+  jadwal `SCAN_INTERVAL_MINUTES`. Tetep jalan walau bot lagi status
+  "stopped" (override sekali doang, status balik ke stopped lagi
+  setelahnya kalau emang lagi di-stop).
+- **🔀 Jalur Terakhir** - nunjukin rute arbitrase (token, chain
+  beli/jual, jalur bridge, gap%, profit bersih) yang terakhir kali
+  ketemu di Stage 5 - termasuk yang gak jadi dikirim sebagai alert
+  karena profit-nya di bawah `MIN_NET_PROFIT_PERCENT`.
+- **⏸ Stop / ▶️ Start** - set flag `enabled` (disimpen ke `state.json`).
+  Stop = siklus scan berikutnya di-skip total (hemat kuota API).
+- **📊 Status** - balas status sekarang (jalan / berhenti).
+
+Command teks (`/start`, `/stop`, `/status`, `/menu` - buat manggil ulang
+menunya kalau kescroll) tetap jalan berbarengan sama tombolnya, dua-duanya
+setara. Listener-nya pakai Telegram **long-polling** (nahan koneksi
+sampai 30 detik nunggu pesan/tap baru) dan jalan terus selama proses
+hidup - efeknya kerasa hampir instan, gak nunggu jadwal scan berikutnya.
+
+Command/tombol dari chat ID selain yang di `.env` (`TELEGRAM_CHAT_ID`)
+diabaikan - biar orang lain yang nemu bot ini gak bisa kontrol punya
+kamu.
 
 ## Deploy di VPS sendiri (pm2 + .env lokal, tetap free)
 

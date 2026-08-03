@@ -80,6 +80,31 @@ berbagi satu objek `state` yang sama (referensi, bukan copy), offset
 ada API call CoinGecko/LI.FI). Command dari chat ID selain
 `TELEGRAM_CHAT_ID` di `.env` diabaikan.
 
+**Menu tombol permanen (ditambah 2026-08-03, revisi hari yang sama):**
+user nunjukin contoh bot lain (liat `/root/charon/src/telegram/menus.js`
+di VPS) yang pakai keyboard bawah persisten, bukan tombol yang nempel di
+satu pesan doang. Percobaan pertama pakai `reply_markup.inline_keyboard`
+(tombol nempel per-pesan, perlu `answerCallbackQuery`) - DIGANTI total ke
+`reply_markup.keyboard` (`resize_keyboard: true`) di `menuKeyboard()`
+(`commands.js`), yang begitu dikirim SEKALI (pas `startCommandListener()`
+start) langsung nempel permanen di bawah kotak chat app Telegram user,
+gak perlu di-resend tiap balesan. Konsekuensinya: tap tombol reply-keyboard
+masuk sebagai `update.message` biasa (teks-nya = label tombol persis,
+termasuk emoji-nya) - BUKAN `update.callback_query` kayak inline keyboard,
+jadi gak butuh `answerCallbackQuery` sama sekali. `handleText()` di
+`commands.js` nangani command teks (`/start`) dan tap tombol
+(`'▶️ Start'`) lewat `switch` yang sama.
+
+4 tombolnya: **📡 Scan Sekarang** (trigger scan di luar jadwal, lewat
+`wakeEmitter` di `src/wake.js` - `EventEmitter` yang di-share ke
+`index.js` buat interupsi `waitForNextCycle()`; scan tetep jalan sekali
+walau status lagi stopped, pakai flag `forceNext` di loop `main()`),
+**🔀 Jalur Terakhir** (baca `state.lastRoute`, diisi tiap Stage 5 nemu
+rute - ADA atau GAK ADA alert yang jadi dikirim, jadi user tetep bisa
+liat rute yang kedeteksi walau di bawah threshold profit), **⏸/▶️
+Stop/Start**, **📊 Status**. Command `/menu` tetep ada buat manggil ulang
+keyboard-nya kalau user pernah nge-remove secara manual dari app-nya.
+
 **Bug yang udah pernah kefix, jangan diulang:** `sendTelegramAlert()`
 harus return boolean sukses/gagal, dan `index.js` cuma boleh
 `markAlerted()` (set cooldown) kalau kirimnya BENERAN sukses. Awalnya

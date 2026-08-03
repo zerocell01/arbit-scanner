@@ -20,12 +20,14 @@ export async function sendTelegramAlert(text) {
   return sendTelegramMessage(text)
 }
 
-export async function sendTelegramMessage(text) {
+// `extra` buat nempelin reply_markup (inline keyboard button) ke pesan.
+export async function sendTelegramMessage(text, extra = {}) {
   const res = await callTelegramApi('sendMessage', {
     chat_id: config.telegramChatId,
     text,
     parse_mode: 'Markdown',
     disable_web_page_preview: true,
+    ...extra,
   })
   if (!res.ok) {
     console.error('[telegram] gagal kirim:', res.status, await res.text())
@@ -56,6 +58,7 @@ export async function setTelegramCommands() {
       { command: 'start', description: 'Aktifkan scanning arbit-scanner' },
       { command: 'stop', description: 'Hentikan scanning arbit-scanner' },
       { command: 'status', description: 'Cek status bot lagi jalan atau berhenti' },
+      { command: 'menu', description: 'Tampilin menu tombol Start/Stop/Status' },
     ],
   })
 }

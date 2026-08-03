@@ -5,8 +5,26 @@ import { estimateArbitrage } from './profit.js'
 import { sendTelegramAlert } from './telegram.js'
 import { loadState, saveState, isOnCooldown, markAlerted } from './state.js'
 import { startCommandListener, isEnabled } from './commands.js'
+import { wakeEmitter } from './wake.js'
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+// Kayak sleep(), tapi bisa diinterupsi lebih awal lewat wakeEmitter (dipicu
+// tombol "Scan Sekarang" di Telegram). Resolve dengan payload event-nya
+// (mis. `{ forced: true }`), atau `undefined` kalau abis karena timeout biasa.
+function waitForNextCycle(ms) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      wakeEmitter.off('wake', onWake)
+      resolve(undefined)
+    }, ms)
+    function onWake(payload) {
+      clearTimeout(timer)
+      resolve(payload)
+    }
+    wakeEmitter.once('wake', onWake)
+  })
+}
 
 async function scanOnce(state) {
   console.log('[stage1] scanning gainers/losers...')
@@ -76,6 +94,21 @@ async function scanOnce(state) {
       continue
     }
 
+    // Dicatet buat tombol "Jalur Terakhir" di Telegram - tetap disimpen
+    // walau di bawah profit ntar di-skip alert-nya, biar user tetep bisa
+    // liat rute apa yang kedetect terakhir kali.
+    state.lastRoute = {
+      symbol: candidate.symbol.toUpperCase(),
+      fromPlatform: cheapest.platform,
+      toPlatform: priciest.platform,
+      bridgeName: arb.bridgeName,
+      gapPercent,
+      netProfitUsd: arb.netProfitUsd,
+      netProfitPercent: arb.netProfitPercent,
+      time: Date.now(),
+      alerted: false,
+    }
+
     if (arb.netProfitPercent < config.minNetProfitPercent) {
       console.log(
         `[stage5] ${candidate.symbol} rute ketemu (${arb.bridgeName}) tapi profit bersih cuma ${arb.netProfitPercent.toFixed(2)}% (fee+gas ~$${arb.totalFeeUsd.toFixed(2)}), skip alert`,
@@ -106,6 +139,7 @@ async function scanOnce(state) {
       // cooldown cuma di-set kalau beneran kekirim, biar yang gagal
       // (mis. token salah) tetap dicoba ulang di run berikutnya
       markAlerted(state, key)
+      state.lastRoute.alerted = true
       alertsSent += 1
     }
   }
@@ -115,10 +149,10 @@ async function scanOnce(state) {
 }
 
 // Proses long-running (bukan sekali-jalan-lalu-exit) - dipasang di pm2,
-// bukan cron. Command listener (`/start` `/stop` `/status`) jalan paralel
-// terus-terusan lewat long-polling, jadi kerasa instan. Loop scan di bawah
-// jalan tiap `SCAN_INTERVAL_MINUTES` (default 15 menit), berbagi objek
-// `state` yang sama dengan listener-nya.
+// bukan cron. Command listener (`/start` `/stop` `/status`, tombol menu)
+// jalan paralel terus-terusan lewat long-polling, jadi kerasa instan. Loop
+// scan di bawah jalan tiap `SCAN_INTERVAL_MINUTES` (default 15 menit), atau
+// langsung kalau tombol "Scan Sekarang" di-tap (lewat wakeEmitter).
 async function main() {
   const state = await loadState()
 
@@ -126,8 +160,10 @@ async function main() {
     console.error('[fatal] command listener berhenti:', err)
   })
 
+  let forceNext = false
   while (true) {
-    if (isEnabled(state)) {
+    if (isEnabled(state) || forceNext) {
+      forceNext = false
       try {
         await scanOnce(state)
       } catch (err) {
@@ -136,7 +172,8 @@ async function main() {
     } else {
       console.log('[bot] status: stopped, skip scan')
     }
-    await sleep(config.scanIntervalMinutes * 60 * 1000)
+    const wake = await waitForNextCycle(config.scanIntervalMinutes * 60 * 1000)
+    if (wake?.forced) forceNext = true
   }
 }
 
