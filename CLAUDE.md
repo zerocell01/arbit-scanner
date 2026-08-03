@@ -1,11 +1,20 @@
 # arbit-scanner
 
-Bot pemantau gap harga arbitrage cross-chain, dibangun buat pemilik
-akun **@Uyar121-style arbitrage workflow** (lihat catatan "Arbitrage
-From Zero" seri #1-#5 + studi kasus "$80 -> $118" di repo
-`zerocell01/anantanotes` buat konteks strategi manual yang jadi dasar
-bot ini). Tujuannya: otomasiin bagian **screening** (nemuin gap harga),
-BUKAN eksekusi otomatis.
+Bot pemantau gap harga arbitrage cross-chain, dibangun berdasarkan
+workflow manual di seri **"Arbitrage From Zero" #1-#5 + studi kasus
+"$80 -> $118"** oleh **@Uyar121** (bukan cuma "style" - itu sumber
+konkret, ada di repo `zerocell01/anantanotes`, `src/pages/ArbitrageUyar121*.jsx`
++ `ArbitrageUyar121Breakdown.jsx`. Sempet ke-skip pas riset awal karena
+clone lokal di VPS ketinggalan 10+ commit dari GitHub - kalau butuh baca
+lagi, **`git pull` dulu**, jangan asumsi clone lokal up to date). Isi
+seri itu: #1 dasar LayerZero/Stargate + DVN safety, #2 workflow
+screening (CoinGecko top gainer/loser -> ini yang jadi cetak biru Stage
+1-2 bot ini), #3 Wormhole (Portal Bridge, Token Verifier/Attestation,
+Governor/Value Limit Bridge), #4 Chainlink CCIP (+ studi kasus token
+FLUID - gap "ATM harian" yang JALURNYA CUMA LEWAT CCIP), #5 cara reverse-
+engineer bridge apa yang dipakai suatu token dari on-chain data. Tujuan
+bot: otomasiin bagian **screening** (nemuin gap harga), BUKAN eksekusi
+otomatis.
 
 ## Kenapa dibangun begini (konteks keputusan)
 
@@ -66,6 +75,24 @@ BUKAN eksekusi otomatis.
    (sebelum Stage 5 ada) itu **false positive**. Kalau `netProfitPercent`
    di bawah `MIN_NET_PROFIT_PERCENT` (default 0%), alert juga di-skip -
    fee bridge kadang makan abis gap-nya buat token yang chain-nya jauh.
+
+   **Fallback CCIP** (`src/ccip.js: checkCcipRoute`, ditambah 2026-08-04):
+   dicek langsung ke LI.FI `/v1/tools` - dari 35 bridge yang di-aggregate,
+   **Chainlink CCIP gak ada SAMA SEKALI**. Artinya token yang jalur
+   satu-satunya lewat CCIP bakal SELALU `routeFound:false` di Stage 5,
+   walau peluangnya beneran ada (persis studi kasus token FLUID di seri
+   Uyar121 #4 - gap "ATM harian" yang cuma bisa dieksekusi lewat
+   Transporter/CCIP). Fix: kalau LI.FI 404, cek lagi ke [Chainlink CCIP
+   Directory API](https://docs.chain.link/api/ccip/v1/tokens) (gratis,
+   query by `token_id` = symbol UPPERCASE, BUKAN contract address kayak
+   LI.FI) - kalau ada lane terdaftar antar kedua chain, kirim info
+   TERPISAH (`routeEntry.ccipFallback = true`, cek `commands.js:
+   formatRouteEntry()`) TANPA angka profit, karena directory ini cuma
+   nunjukin lane-nya ADA, gak ngasih data fee/price-impact kayak LI.FI
+   `/quote`. Chain ID CCIP beda numbering-nya per non-EVM chain (Solana
+   direpresentasiin string base58, bukan numerik) - `CCIP_CHAIN_IDS` di
+   `src/ccip.js` sengaja cuma cover chain EVM di `CHAIN_MAP`, Solana
+   di-skip (return false, bukan error).
 6. **Stage 6** (`src/security.js: checkArbitrageSafety`, ditambah
    2026-08-04) - cek honeypot/tax jual ekstrim via GoPlus Security API
    (gratis, no key) di KEDUA chain (beli & jual), CUMA buat kandidat yang

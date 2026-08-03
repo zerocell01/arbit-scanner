@@ -27,6 +27,13 @@ milidetik, jadi polling cukup).
    liquiditas nyata**: kalau gak ada rute yang lolos di semua bridge yang
    dicoba (price impact kegedean), alert di-skip - gap-nya kemungkinan
    gak beneran bisa dieksekusi walau angkanya keliatan besar di Stage 1-3.
+   - **Fallback Chainlink CCIP:** LI.FI gak nge-cover CCIP sama sekali
+     (bukan salah satu dari 35 bridge yang di-aggregate-nya). Kalau LI.FI
+     bilang "no route", dicek lagi ke [Chainlink CCIP Directory
+     API](https://docs.chain.link/api/ccip/README) (gratis) - kalau
+     ternyata ada lane CCIP terdaftar buat token itu di kedua chain,
+     tetap dikirim sebagai info (BUKAN alert dengan angka profit, karena
+     directory ini cuma nunjukin lane-nya ada, gak ngasih data fee/quote).
 6. **Stage 6 - Cek honeypot:** buat kandidat yang LOLOS Stage 5 (rute +
    profit oke di atas kertas), dicek lagi ke [GoPlus Security
    API](https://gopluslabs.io/) (gratis, no key) di kedua chain - nyari

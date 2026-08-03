@@ -3,6 +3,7 @@ import { fetchVolatileCandidates, fetchPlatforms } from './coingecko.js'
 import { fetchTokenInfo } from './lifi.js'
 import { estimateArbitrage } from './profit.js'
 import { checkArbitrageSafety } from './security.js'
+import { checkCcipRoute } from './ccip.js'
 import { sendTelegramAlert } from './telegram.js'
 import { loadState, saveState, isOnCooldown, markAlerted } from './state.js'
 import { startCommandListener, isEnabled } from './commands.js'
@@ -116,7 +117,47 @@ async function scanOnce(state) {
     state.lastRoutes = [routeEntry, ...(state.lastRoutes ?? [])].slice(0, MAX_ROUTE_HISTORY)
 
     if (!arb.routeFound) {
-      console.log(`[stage5] ${candidate.symbol} gap ${gapPercent.toFixed(2)}% tapi gak ada rute bridge yang lolos (liquiditas tipis ATAU honeypot/tax jual ekstrim), skip alert`)
+      // Fallback: LI.FI gak nge-cover Chainlink CCIP sama sekali (dicek di
+      // /v1/tools) - token yang jalur SATU-SATUNYA lewat CCIP bakal selalu
+      // "no route" di sini walau peluangnya beneran ada. Cek directory CCIP
+      // (gratis) sebelum nyerah total.
+      let ccipFound = false
+      try {
+        ccipFound = await checkCcipRoute(candidate.symbol, cheapest.chainKey, priciest.chainKey)
+      } catch (err) {
+        console.warn(`[ccip] skip cek ${candidate.symbol}: ${err.message}`)
+      }
+
+      if (!ccipFound) {
+        console.log(`[stage5] ${candidate.symbol} gap ${gapPercent.toFixed(2)}% tapi gak ada rute bridge yang lolos (liquiditas tipis ATAU honeypot/tax jual ekstrim), skip alert`)
+        continue
+      }
+
+      routeEntry.ccipFallback = true
+      console.log(`[ccip] ${candidate.symbol} gak ada rute LI.FI, TAPI ada lane CCIP terdaftar - kirim info (tanpa angka profit, CCIP directory gak kasih data quote)`)
+
+      if (onCooldown) {
+        console.log(`[ccip] ${candidate.symbol} lane CCIP ketemu tapi masih cooldown, skip info`)
+        continue
+      }
+
+      const infoText = [
+        `*Kemungkinan gap: ${candidate.symbol.toUpperCase()}*`,
+        `24h change: ${candidate.change24h.toFixed(1)}%`,
+        `${cheapest.platform} → ${priciest.platform}, gap harga *${gapPercent.toFixed(2)}%*`,
+        '',
+        '⚠️ LI.FI gak nemu rute buat token ini, TAPI Chainlink CCIP Directory nunjukin ada lane bridge terdaftar di kedua chain (LI.FI gak cover CCIP sama sekali).',
+        'Belum ada estimasi fee/profit - directory ini cuma nunjukin lane-nya ADA, bukan quote. Cek manual di transporter.io atau CCIP Explorer buat liat cost & simulasi beneran sebelum eksekusi.',
+        '',
+        `CA (${cheapest.platform}): \`${cheapest.address}\``,
+        `CA (${priciest.platform}): \`${priciest.address}\``,
+      ].join('\n')
+
+      const infoSent = await sendTelegramAlert(infoText)
+      if (infoSent) {
+        markAlerted(state, key)
+        routeEntry.alerted = true
+      }
       continue
     }
 
