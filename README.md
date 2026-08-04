@@ -34,16 +34,18 @@ milidetik, jadi polling cukup).
      ternyata ada lane CCIP terdaftar buat token itu di kedua chain,
      tetap dikirim sebagai info (BUKAN alert dengan angka profit, karena
      directory ini cuma nunjukin lane-nya ada, gak ngasih data fee/quote).
-6. **Stage 6 - Cek honeypot:** buat kandidat yang LOLOS Stage 5 (rute +
-   profit oke di atas kertas), dicek lagi ke [GoPlus Security
+6. **Stage 6 - Cek honeypot & liquiditas:** buat kandidat yang LOLOS Stage
+   5 (rute + profit oke di atas kertas), dicek lagi ke [GoPlus Security
    API](https://gopluslabs.io/) (gratis, no key) di kedua chain - nyari
-   flag `is_honeypot`, `cannot_sell_all`, dan `sell_tax` di atas
-   `MAX_SELL_TAX_PERCENT`. LI.FI ngecek kelayakan RUTE (price impact,
-   liquidity), tapi gak selalu simulasi logic tax/blacklist kontrak yang
-   aneh-aneh - token honeypot kadang tetep dapet "quote" valid dari LI.FI
-   walau di dunia nyata gak bisa dijual. Kalau GoPlus gak punya data DEX
-   buat token itu, dianggap **inconclusive** (bukan otomatis "aman") -
-   cek ini gak menggantikan cek manual, cuma nambah satu lapisan.
+   flag `is_honeypot`, `cannot_sell_all`, `sell_tax` di atas
+   `MAX_SELL_TAX_PERCENT`, DAN liquiditas DEX total di bawah
+   `TRADE_SIZE_USD × MIN_LIQUIDITY_MULTIPLIER`. LI.FI ngecek kelayakan
+   RUTE (price impact, liquidity), tapi gak selalu simulasi logic
+   tax/blacklist kontrak yang aneh-aneh, dan quote-nya bisa aja "berhasil"
+   walau liquiditas riil-nya jauh di bawah modal simulasi (angka profit
+   yang keluar jadi gak bisa dipercaya). Kalau GoPlus gak punya data
+   (chain/token gak ke-index), dianggap **inconclusive** (bukan otomatis
+   "aman") - cek ini gak menggantikan cek manual, cuma nambah satu lapisan.
 
 Paralel sama loop scan di atas, ada listener terpisah yang terus-terusan
 dengerin command Telegram baru (`/start`, `/stop`, `/status`) - lihat
@@ -164,8 +166,13 @@ pm2 restart arbit-scanner
 ## Catatan
 
 - Threshold default (`GAINER_LOSER_THRESHOLD=15`, `MIN_GAP_PERCENT=3`,
-  `MIN_NET_PROFIT_PERCENT=0`, `MAX_SELL_TAX_PERCENT=15`) ada di
-  `.env.example` - sesuaikan sendiri.
+  `MIN_NET_PROFIT_PERCENT=0`, `MAX_SELL_TAX_PERCENT=15`,
+  `MIN_LIQUIDITY_MULTIPLIER=5`) ada di `.env.example` - sesuaikan sendiri.
+- Nama jalur bridge di alert & tombol "Jalur Terakhir" udah jadi link
+  klik ke situs resmi bridge-nya (`src/bridgeLinks.js`) - mapping manual,
+  bukan exhaustive, tool yang gak ke-map fallback ke
+  [jumper.exchange](https://jumper.exchange) (produk consumer LI.FI
+  sendiri).
 - `TRADE_SIZE_USD` (default 500) itu modal notional yang disimulasiin di
   Stage 5 buat ngitung profit bersih - bukan modal beneran, cuma dasar
   hitungan. Fee bridge persentasenya biasanya turun buat modal lebih

@@ -52,6 +52,7 @@ export async function estimateArbitrage(cheapest, priciest) {
   return {
     routeFound: true,
     bridgeName: quote.toolDetails?.name ?? quote.tool,
+    bridgeKey: quote.tool, // key mentah (mis. "stargateV2", "glacis") - dipakai buat lookup link resmi
     netProfitUsd,
     netProfitPercent,
     totalFeeUsd,

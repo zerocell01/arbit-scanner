@@ -53,7 +53,7 @@ function formatRouteEntry(r) {
   }
 
   const status = r.alerted ? 'alert terkirim' : 'di bawah threshold profit'
-  return `${header}\n${ca}\n  Jalur: *${r.bridgeName}* - profit $${r.netProfitUsd.toFixed(2)} (${r.netProfitPercent.toFixed(2)}%) - _${status}_`
+  return `${header}\n${ca}\n  Jalur: [${r.bridgeName}](${r.bridgeLink}) - profit $${r.netProfitUsd.toFixed(2)} (${r.netProfitPercent.toFixed(2)}%) - _${status}_`
 }
 
 function formatLastRoute(state) {

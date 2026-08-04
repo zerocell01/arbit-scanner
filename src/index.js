@@ -4,6 +4,7 @@ import { fetchTokenInfo } from './lifi.js'
 import { estimateArbitrage } from './profit.js'
 import { checkArbitrageSafety } from './security.js'
 import { checkCcipRoute } from './ccip.js'
+import { bridgeLinkFor } from './bridgeLinks.js'
 import { sendTelegramAlert } from './telegram.js'
 import { loadState, saveState, isOnCooldown, markAlerted } from './state.js'
 import { startCommandListener, isEnabled } from './commands.js'
@@ -109,6 +110,7 @@ async function scanOnce(state) {
       gapPercent,
       routeFound: arb.routeFound,
       bridgeName: arb.routeFound ? arb.bridgeName : null,
+      bridgeLink: arb.routeFound ? bridgeLinkFor(arb.bridgeKey) : null,
       netProfitUsd: arb.routeFound ? arb.netProfitUsd : null,
       netProfitPercent: arb.routeFound ? arb.netProfitPercent : null,
       time: Date.now(),
@@ -198,7 +200,7 @@ async function scanOnce(state) {
       `Jual di *${priciest.platform}*: $${priciest.price.toPrecision(6)}`,
       `Gap harga: *${gapPercent.toFixed(2)}%*`,
       '',
-      `Jalur bridge: *${arb.bridgeName}*`,
+      `Jalur bridge: [${arb.bridgeName}](${bridgeLinkFor(arb.bridgeKey)})`,
       `Modal simulasi: $${config.tradeSizeUsd}`,
       `Estimasi profit bersih: *$${arb.netProfitUsd.toFixed(2)} (${arb.netProfitPercent.toFixed(2)}%)*`,
       `Total fee+gas bridge: ~$${arb.totalFeeUsd.toFixed(2)}`,

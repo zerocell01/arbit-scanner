@@ -120,6 +120,48 @@ otomatis.
    across, cbridge, mayan, glacis, relaydepository) - "no route" dari
    LI.FI udah representasi luas, bukan cuma satu jalur.
 
+   **Insiden nyata & fix liquidity floor (2026-08-04, ~1 hari setelah
+   Stage 6 pertama kali di-deploy):** token **WMTX** LOLOS Stage 5+6 dan
+   alert BENERAN TERKIRIM ke user dengan angka "profit $357.77 (71.55%)"
+   - padahal token itu cuma punya **3 pool Uniswap V4 di Arbitrum totalnya
+   ~$588 liquiditas, 24 holder, total supply cuma 2676 token, dan
+   `is_mintable:1`**. GoPlus `is_honeypot`/`sell_tax`/`cannot_sell_all`
+   semua nunjukin aman (0/0/false) - jadi token BUKAN honeypot secara
+   teknis, tapi angka profitnya FIKTIF karena price impact real jauh lebih
+   parah dari yang LI.FI simulasiin buat pool sekecil itu (kenapa LI.FI
+   gak nolak quote-nya kayak biasa, belum jelas - kemungkinan pool
+   Uniswap V4 custom-fee-tier bikin threshold price-impact LI.FI salah
+   hitung). User yang notice sendiri gap 70%+ bertahan konsisten di 4+
+   siklus scan berturut-turut itu red flag (gap arbitrase asli ketutup
+   dalam menit, bukan bertahan berjam-jam) - **BUKAN Claude yang nyadar
+   duluan, user yang curiga lebih dulu dan minta dicek**.
+
+   Fix: `checkTokenSecurity()` sekarang JUGA hitung liquiditas total dari
+   `info.dex[].liquidity` (GoPlus), unsafe kalau di bawah
+   `TRADE_SIZE_USD × MIN_LIQUIDITY_MULTIPLIER` (default 5x = $2500 buat
+   modal $500). **Gotcha pas nulis fix ini**: `info.dex` bisa `null`
+   (BUKAN array kosong) buat token base-pair besar kayak WETH - GoPlus
+   gak nge-list detail pool buat token semacam itu walau liquiditasnya
+   jelas gede. Percobaan pertama treat `dex ?? []` bikin WETH ke-flag
+   `$0 liquidity` (false positive, ke-catch pas testing manual sebelum
+   deploy). Fix final: `hasLiquidityData = Array.isArray(info.dex) &&
+   info.dex.length > 0` - kalau `dex` null/kosong, cek liquiditas
+   di-SKIP (inconclusive), BUKAN otomatis unsafe. Pola yang sama kayak
+   `is_in_dex==='0'` di atas: **data kosong dari GoPlus itu selalu
+   inconclusive, jangan pernah diasumsikan ke salah satu arah (aman
+   ATAU gak aman)** - ini prinsip yang sekarang berulang 2x di file ini,
+   kemungkinan bakal kejadian lagi kalau nambah field GoPlus baru.
+
+**Link bridge di alert (`src/bridgeLinks.js`, ditambah 2026-08-04):**
+mapping manual `bridgeKey` (raw key dari LI.FI, mis. `"glacis"`,
+`"stargateV2"` - BUKAN `bridgeName` yang udah manusiawi kayak "Glacis")
+ke URL resmi bridge-nya. Tool yang gak ke-map (banyak, LI.FI punya 35
+bridge total) fallback ke `https://jumper.exchange` (produk consumer
+LI.FI sendiri, valid buat rute apa pun). User tanya soal "Glacis" abis
+liat itu di alert - jawabannya: middleware/router legit yang
+nge-aggregate GMP lain (Axelar, Wormhole, LayerZero) dengan sistem
+redundansi, bukan bridge abal-abal.
+
 **Kontrol on/off** (`src/commands.js`, ditambah 2026-08-03, diubah ke
 long-polling di hari yang sama): `index.js` sekarang proses long-running
 - `main()` start `startCommandListener(state)` (jalan paralel, gak

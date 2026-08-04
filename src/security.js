@@ -43,13 +43,31 @@ async function checkTokenSecurity(chainKey, address) {
   const cannotSellAll = info.cannot_sell_all === '1'
   const sellTax = Number(info.sell_tax ?? 0) * 100 // GoPlus kasih fraction (0.15), config-nya persen
   const maxSellTax = config.maxSellTaxPercent
-  const unsafe = isHoneypot || cannotSellAll || sellTax > maxSellTax
+
+  // Liquiditas total DEX (USD) - kalau jauh lebih kecil dari modal simulasi
+  // (TRADE_SIZE_USD), quote LI.FI-nya gak bisa dipercaya biar pun "route
+  // ketemu". Trigger: token WMTX lolos Stage 5 dengan profit $357 (71%) di
+  // atas kertas, padahal total liquiditas DEX-nya cuma ~$588 buat modal
+  // $500 - price impact real bakal jauh lebih parah dari yang kesimulasi.
+  //
+  // PENTING: `info.dex` bisa `null` (bukan array kosong) buat token besar
+  // kayak WETH - GoPlus gak nge-list pool detailnya buat token "base pair"
+  // gitu walau liquiditasnya jelas gede. Kalau `dex` gak ada, itu inconclusive
+  // (skip cek ini), BUKAN otomatis dianggap $0/gak aman - awalnya salah,
+  // WETH sempet ke-flag palsu gara-gara ini.
+  const hasLiquidityData = Array.isArray(info.dex) && info.dex.length > 0
+  const totalLiquidityUsd = hasLiquidityData ? info.dex.reduce((sum, pool) => sum + Number(pool.liquidity ?? 0), 0) : null
+  const minLiquidityUsd = config.tradeSizeUsd * config.minLiquidityMultiplier
+  const liquidityTooThin = hasLiquidityData && totalLiquidityUsd < minLiquidityUsd
+
+  const unsafe = isHoneypot || cannotSellAll || sellTax > maxSellTax || liquidityTooThin
   if (!unsafe) return { unsafe: false }
 
   const reasons = []
   if (isHoneypot) reasons.push('honeypot')
   if (cannotSellAll) reasons.push('gak bisa dijual semua')
   if (sellTax > maxSellTax) reasons.push(`sell tax ${sellTax.toFixed(0)}%`)
+  if (liquidityTooThin) reasons.push(`liquiditas DEX cuma $${totalLiquidityUsd.toFixed(0)} (butuh minimal $${minLiquidityUsd.toFixed(0)} buat modal $${config.tradeSizeUsd})`)
   return { unsafe: true, reason: reasons.join(', ') }
 }
 

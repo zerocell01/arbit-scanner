@@ -13,6 +13,11 @@ export const config = {
   // Stage keamanan: sell tax di atas ini (dari GoPlus) dianggap gak wajar
   // buat token normal - kemungkinan honeypot/scam, skip alert
   maxSellTaxPercent: Number(process.env.MAX_SELL_TAX_PERCENT ?? 15),
+  // liquiditas DEX (dari GoPlus) minimal harus X kali TRADE_SIZE_USD, kalau
+  // kurang, quote LI.FI-nya gak dipercaya walau "route ketemu" - token
+  // super-tipis bisa ngasih angka profit palsu karena price impact real
+  // jauh lebih parah dari yang kesimulasi
+  minLiquidityMultiplier: Number(process.env.MIN_LIQUIDITY_MULTIPLIER ?? 5),
 }
 
 // Mapping CoinGecko "platform" id -> LI.FI chain key.
